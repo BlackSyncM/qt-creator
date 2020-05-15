@@ -60,6 +60,7 @@
 #include <QSpinBox>
 #include <QTabBar>
 #include <QTabWidget>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -81,15 +82,6 @@ static QString msgAttachDebuggerTooltip(const QString &handleDescription = QStri
     return handleDescription.isEmpty() ?
            AppOutputPane::tr("Attach debugger to this process") :
            AppOutputPane::tr("Attach debugger to %1").arg(handleDescription);
-}
-
-static void replaceAllChildWidgets(QLayout *layout, const QList<QWidget *> &newChildren)
-{
-    while (QLayoutItem *child = layout->takeAt(0))
-        delete child;
-
-    for (QWidget *widget : newChildren)
-        layout->addWidget(widget);
 }
 
 namespace {
@@ -163,7 +155,7 @@ AppOutputPane::RunControlTab::RunControlTab(RunControl *runControl, Core::Output
     runControl(runControl), window(w)
 {
     if (runControl && w)
-        w->setFormatter(runControl->outputFormatter());
+        w->setLineParsers(runControl->createOutputParsers());
 }
 
 AppOutputPane::AppOutputPane() :
@@ -413,7 +405,7 @@ void AppOutputPane::createNewOutputWindow(RunControl *rc)
         if (tab.runControl)
             tab.runControl->initiateFinish();
         tab.runControl = rc;
-        tab.window->setFormatter(rc->outputFormatter());
+        tab.window->setLineParsers(rc->createOutputParsers());
 
         handleOldOutput(tab.window);
 
@@ -700,10 +692,6 @@ void AppOutputPane::enableButtons(const RunControl *rc)
             m_attachButton->setToolTip(msgAttachDebuggerTooltip());
         }
         setZoomButtonsEnabled(true);
-
-        replaceAllChildWidgets(m_formatterWidget->layout(), rc->outputFormatter() ?
-                                   rc->outputFormatter()->toolbarWidgets() :
-                                   QList<QWidget *>());
     } else {
         m_reRunButton->setEnabled(false);
         m_reRunButton->setIcon(Utils::Icons::RUN_SMALL_TOOLBAR.icon());
@@ -756,8 +744,12 @@ void AppOutputPane::slotRunControlFinished()
 {
     auto *rc = qobject_cast<RunControl *>(sender());
     QTimer::singleShot(0, this, [this, rc]() { slotRunControlFinished2(rc); });
-    if (rc->outputFormatter())
-        rc->outputFormatter()->flush();
+    for (const RunControlTab &t : m_runControlTabs) {
+        if (t.runControl == rc) {
+            t.window->flush();
+            break;
+        }
+    }
 }
 
 void AppOutputPane::slotRunControlFinished2(RunControl *sender)

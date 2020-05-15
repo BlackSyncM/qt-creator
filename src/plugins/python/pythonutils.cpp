@@ -43,6 +43,8 @@
 
 #include <texteditor/textdocument.h>
 
+#include <utils/consoleprocess.h>
+#include <utils/mimetypes/mimedatabase.h>
 #include <utils/qtcassert.h>
 #include <utils/runextensions.h>
 #include <utils/synchronousprocess.h>
@@ -170,8 +172,10 @@ static FilePath detectPython(const FilePath &documentPath)
 {
     FilePath python;
 
-    PythonProject *project = qobject_cast<PythonProject *>(
-        ProjectExplorer::SessionManager::projectForFile(documentPath));
+    PythonProject *project = documentPath.isEmpty()
+                                 ? nullptr
+                                 : qobject_cast<PythonProject *>(
+                                     ProjectExplorer::SessionManager::projectForFile(documentPath));
     if (!project)
         project = qobject_cast<PythonProject *>(ProjectExplorer::SessionManager::startupProject());
 
@@ -285,7 +289,7 @@ private:
         m_future.reportFinished();
         if (exitStatus == QProcess::NormalExit && exitCode == 0) {
             if (Client *client = registerLanguageServer(m_python))
-                LanguageClientManager::reOpenDocumentWithClient(m_document, client);
+                LanguageClientManager::openDocumentWithClient(m_document, client);
         } else {
             Core::MessageManager::write(
                 tr("Installing the Python language server failed with exit code %1").arg(exitCode));
@@ -334,7 +338,7 @@ static void setupPythonLanguageServer(const FilePath &python,
 {
     document->infoBar()->removeInfo(startPylsInfoBarId);
     if (Client *client = registerLanguageServer(python))
-        LanguageClientManager::reOpenDocumentWithClient(document, client);
+        LanguageClientManager::openDocumentWithClient(document, client);
 }
 
 static void enablePythonLanguageServer(const FilePath &python,
@@ -345,7 +349,7 @@ static void enablePythonLanguageServer(const FilePath &python,
         LanguageClientManager::enableClientSettings(setting->m_id);
         if (const StdIOSettings *setting = PyLSConfigureAssistant::languageServerForPython(python)) {
             if (Client *client = LanguageClientManager::clientForSetting(setting).value(0)) {
-                LanguageClientManager::reOpenDocumentWithClient(document, client);
+                LanguageClientManager::openDocumentWithClient(document, client);
                 PyLSConfigureAssistant::updateEditorInfoBars(python, client);
             }
         }
@@ -402,7 +406,7 @@ void PyLSConfigureAssistant::handlePyLSState(const FilePath &python,
     if (state.state == PythonLanguageServerState::AlreadyConfigured) {
         if (const StdIOSettings *setting = languageServerForPython(python)) {
             if (Client *client = LanguageClientManager::clientForSetting(setting).value(0))
-                LanguageClientManager::reOpenDocumentWithClient(document, client);
+                LanguageClientManager::openDocumentWithClient(document, client);
         }
         return;
     }
@@ -452,7 +456,7 @@ void PyLSConfigureAssistant::updateEditorInfoBars(const FilePath &python, Client
     for (TextEditor::TextDocument *document : instance()->m_infoBarEntries.take(python)) {
         instance()->resetEditorInfoBar(document);
         if (client)
-            LanguageClientManager::reOpenDocumentWithClient(document, client);
+            LanguageClientManager::openDocumentWithClient(document, client);
     }
 }
 
@@ -478,6 +482,55 @@ PyLSConfigureAssistant::PyLSConfigureAssistant(QObject *parent)
                 if (auto textDocument = qobject_cast<TextEditor::TextDocument *>(document))
                     resetEditorInfoBar(textDocument);
             });
+}
+
+static QStringList replImportArgs(const FilePath &pythonFile, ReplType type)
+{
+    using MimeTypes = QList<MimeType>;
+    const MimeTypes mimeTypes = pythonFile.isEmpty() || type == ReplType::Unmodified
+                                    ? MimeTypes()
+                                    : mimeTypesForFileName(pythonFile.toString());
+    const bool isPython = Utils::anyOf(mimeTypes, [](const MimeType &mt) {
+        return mt.inherits("text/x-python") || mt.inherits("text/x-python3");
+    });
+    if (type == ReplType::Unmodified || !isPython)
+        return {};
+    const auto import = type == ReplType::Import
+                            ? QString("import %1").arg(pythonFile.toFileInfo().completeBaseName())
+                            : QString("from %1 import *")
+                                  .arg(pythonFile.toFileInfo().completeBaseName());
+    return {"-c", QString("%1; print('Running \"%1\"')").arg(import)};
+}
+
+void openPythonRepl(const FilePath &file, ReplType type)
+{
+    static const auto workingDir = [](const FilePath &file) {
+        if (file.isEmpty()) {
+            if (ProjectExplorer::Project *project = ProjectExplorer::SessionManager::startupProject())
+                return project->projectDirectory().toFileInfo().filePath();
+            return QDir::currentPath();
+        }
+        return file.toFileInfo().path();
+    };
+
+    const auto args = QStringList{"-i"} + replImportArgs(file, type);
+    auto process = new ConsoleProcess;
+    const FilePath pythonCommand = detectPython(file);
+    process->setCommand({pythonCommand, args});
+    process->setWorkingDirectory(workingDir(file));
+    const QString commandLine = process->command().toUserOutput();
+    QObject::connect(process,
+                     &ConsoleProcess::processError,
+                     process,
+                     [process, commandLine](const QString &errorString) {
+                         Core::MessageManager::write(
+                             QCoreApplication::translate("Python",
+                                                         "Failed to run Python (%1): \"%2\".")
+                                 .arg(commandLine, errorString));
+                         process->deleteLater();
+                     });
+    QObject::connect(process, &ConsoleProcess::stubStopped, process, &QObject::deleteLater);
+    process->start();
 }
 
 } // namespace Internal

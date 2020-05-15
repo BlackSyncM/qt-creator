@@ -33,7 +33,7 @@ namespace Internal {
 
 // SdccParser
 
-class SdccParser final : public ProjectExplorer::IOutputParser
+class SdccParser final : public ProjectExplorer::OutputTaskParser
 {
     Q_OBJECT
 
@@ -45,9 +45,8 @@ private:
     void newTask(const ProjectExplorer::Task &task);
     void amendDescription(const QString &desc);
 
-    void stdError(const QString &line) final;
-    void stdOutput(const QString &line) final;
-    void doFlush() final;
+    Result handleLine(const QString &line, Utils::OutputFormat type) final;
+    void flush() final;
 
     ProjectExplorer::Task m_lastTask;
     int m_lines = 0;

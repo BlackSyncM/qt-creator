@@ -68,7 +68,7 @@ public:
                                                     const Utils::FilePath &,
                                                     const Utils::Environment &env) const final;
     void addToEnvironment(Utils::Environment &env) const final;
-    ProjectExplorer::IOutputParser *outputParser() const final;
+    QList<Utils::OutputLineParser *> createOutputParsers() const final;
 
     QVariantMap toMap() const final;
     bool fromMap(const QVariantMap &data) final;
@@ -96,8 +96,6 @@ private:
 
 class IarToolChainFactory final : public ProjectExplorer::ToolChainFactory
 {
-    Q_OBJECT
-
 public:
     IarToolChainFactory();
 

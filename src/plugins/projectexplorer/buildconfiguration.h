@@ -32,6 +32,8 @@
 #include <utils/environment.h>
 #include <utils/fileutils.h>
 
+namespace Utils { class MacroExpander; }
+
 namespace ProjectExplorer {
 
 namespace Internal { class BuildConfigurationPrivate; }
@@ -77,6 +79,9 @@ public:
 
     virtual void addToEnvironment(Utils::Environment &env) const;
 
+    const QList<Core::Id> customParsers() const;
+    void setCustomParsers(const QList<Core::Id> &parsers);
+
     BuildStepList *buildSteps() const;
     BuildStepList *cleanSteps() const;
 
@@ -117,6 +122,10 @@ public:
     void addConfigWidgets(const std::function<void (NamedWidget *)> &adder);
 
     void doInitialize(const BuildInfo &info);
+
+    Utils::MacroExpander *macroExpander() const;
+
+    bool createBuildDirectory();
 
 signals:
     void environmentChanged();

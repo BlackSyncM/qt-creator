@@ -77,7 +77,7 @@ public:
         m_chooser = new Utils::PathChooser;
         m_chooser->setExpectedKind(Utils::PathChooser::ExistingDirectory);
         m_chooser->setHistoryCompleter(QLatin1String("PE.SysRoot.History"));
-        m_chooser->setFileName(SysRootKitAspect::sysRoot(k));
+        m_chooser->setFilePath(SysRootKitAspect::sysRoot(k));
         connect(m_chooser, &Utils::PathChooser::pathChanged,
                 this, &SysRootKitAspectWidget::pathWasChanged);
     }
@@ -92,13 +92,13 @@ private:
     void refresh() override
     {
         if (!m_ignoreChange)
-            m_chooser->setFileName(SysRootKitAspect::sysRoot(m_kit));
+            m_chooser->setFilePath(SysRootKitAspect::sysRoot(m_kit));
     }
 
     void pathWasChanged()
     {
         m_ignoreChange = true;
-        SysRootKitAspect::setSysRoot(m_kit, m_chooser->fileName());
+        SysRootKitAspect::setSysRoot(m_kit, m_chooser->filePath());
         m_ignoreChange = false;
     }
 
@@ -511,19 +511,19 @@ KitAspectWidget *ToolChainKitAspect::createConfigWidget(Kit *k) const
 
 QString ToolChainKitAspect::displayNamePostfix(const Kit *k) const
 {
-    ToolChain *tc = toolChain(k, Constants::CXX_LANGUAGE_ID);
+    ToolChain *tc = cxxToolChain(k);
     return tc ? tc->displayName() : QString();
 }
 
 KitAspect::ItemList ToolChainKitAspect::toUserOutput(const Kit *k) const
 {
-    ToolChain *tc = toolChain(k, Constants::CXX_LANGUAGE_ID);
+    ToolChain *tc = cxxToolChain(k);
     return {{tr("Compiler"), tc ? tc->displayName() : tr("None")}};
 }
 
 void ToolChainKitAspect::addToEnvironment(const Kit *k, Utils::Environment &env) const
 {
-    ToolChain *tc = toolChain(k, Constants::CXX_LANGUAGE_ID);
+    ToolChain *tc = cxxToolChain(k);
     if (tc)
         tc->addToEnvironment(env);
 }
@@ -534,37 +534,36 @@ void ToolChainKitAspect::addToMacroExpander(Kit *kit, Utils::MacroExpander *expa
 
     // Compatibility with Qt Creator < 4.2:
     expander->registerVariable("Compiler:Name", tr("Compiler"),
-                               [kit]() -> QString {
-                                   const ToolChain *tc = toolChain(kit, Constants::CXX_LANGUAGE_ID);
+                               [kit] {
+                                   const ToolChain *tc = cxxToolChain(kit);
                                    return tc ? tc->displayName() : tr("None");
                                });
 
     expander->registerVariable("Compiler:Executable", tr("Path to the compiler executable"),
-                               [kit]() -> QString {
-                                   const ToolChain *tc = toolChain(kit, Constants::CXX_LANGUAGE_ID);
+                               [kit] {
+                                   const ToolChain *tc = cxxToolChain(kit);
                                    return tc ? tc->compilerCommand().toString() : QString();
                                });
 
     expander->registerPrefix("Compiler:Name", tr("Compiler for different languages"),
-                             [kit](const QString &ls) -> QString {
+                             [kit](const QString &ls) {
                                  const ToolChain *tc = toolChain(kit, findLanguage(ls));
                                  return tc ? tc->displayName() : tr("None");
                              });
     expander->registerPrefix("Compiler:Executable", tr("Compiler executable for different languages"),
-                             [kit](const QString &ls) -> QString {
+                             [kit](const QString &ls) {
                                  const ToolChain *tc = toolChain(kit, findLanguage(ls));
                                  return tc ? tc->compilerCommand().toString() : QString();
                              });
 }
 
-
-IOutputParser *ToolChainKitAspect::createOutputParser(const Kit *k) const
+QList<Utils::OutputLineParser *> ToolChainKitAspect::createOutputParsers(const Kit *k) const
 {
     for (const Core::Id langId : {Constants::CXX_LANGUAGE_ID, Constants::C_LANGUAGE_ID}) {
         if (const ToolChain * const tc = toolChain(k, langId))
-            return tc->outputParser();
+            return tc->createOutputParsers();
     }
-    return nullptr;
+    return {};
 }
 
 QSet<Core::Id> ToolChainKitAspect::availableFeatures(const Kit *k) const
@@ -593,6 +592,17 @@ ToolChain *ToolChainKitAspect::toolChain(const Kit *k, Core::Id language)
 {
     return ToolChainManager::findToolChain(toolChainId(k, language));
 }
+
+ToolChain *ToolChainKitAspect::cToolChain(const Kit *k)
+{
+    return ToolChainManager::findToolChain(toolChainId(k, ProjectExplorer::Constants::C_LANGUAGE_ID));
+}
+
+ToolChain *ToolChainKitAspect::cxxToolChain(const Kit *k)
+{
+    return ToolChainManager::findToolChain(toolChainId(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID));
+}
+
 
 QList<ToolChain *> ToolChainKitAspect::toolChains(const Kit *k)
 {
@@ -929,7 +939,6 @@ private:
         DeviceKitAspect::setDeviceId(m_kit, m_model->deviceId(m_comboBox->currentIndex()));
     }
 
-    bool m_isReadOnly = false;
     bool m_ignoreChange = false;
     QComboBox *m_comboBox;
     QPushButton *m_manageButton;

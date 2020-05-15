@@ -1108,7 +1108,8 @@ bool WatchModel::setData(const QModelIndex &idx, const QVariant &value, int role
         }
 
         if (auto kev = ev.as<QKeyEvent>(QEvent::KeyPress)) {
-            if (item && kev->key() == Qt::Key_Delete && item->isWatcher()) {
+            if (item && (kev->key() == Qt::Key_Delete || kev->key() == Qt::Key_Backspace)
+                && item->isWatcher()) {
                 foreach (const QModelIndex &idx, ev.selectedRows())
                     removeWatchItem(itemForIndex(idx));
                 return true;
@@ -1595,7 +1596,8 @@ static QString removeWatchActionText(QString exp)
 static void copyToClipboard(const QString &clipboardText)
 {
     QClipboard *clipboard = QApplication::clipboard();
-    clipboard->setText(clipboardText, QClipboard::Selection);
+    if (clipboard->supportsSelection())
+        clipboard->setText(clipboardText, QClipboard::Selection);
     clipboard->setText(clipboardText, QClipboard::Clipboard);
 }
 
@@ -1909,12 +1911,18 @@ QMenu *WatchModel::createFormatMenu(WatchItem *item, QWidget *parent)
                            });
     }
 
+    addAction(menu, tr("Reset All Individual Formats"), true, [this]() {
+        theIndividualFormats.clear();
+        saveFormats();
+        m_engine->updateLocals();
+    });
+
     menu->addSeparator();
     addAction(menu, tr("Change Display for Type \"%1\":").arg(item->type), false);
 
     addCheckableAction(menu, spacer + tr("Automatic"), true, typeFormat == AutomaticFormat,
                        [this, item] {
-                            //const QModelIndexList active = activeRows();
+                           //const QModelIndexList active = activeRows();
                            //for (const QModelIndex &idx : active)
                            //    setModelData(LocalsTypeFormatRole, AutomaticFormat, idx);
                            setTypeFormat(item->type, AutomaticFormat);
@@ -1924,10 +1932,16 @@ QMenu *WatchModel::createFormatMenu(WatchItem *item, QWidget *parent)
     for (int format : alternativeFormats) {
         addCheckableAction(menu, spacer + nameForFormat(format), true, format == typeFormat,
                            [this, format, item] {
-                                setTypeFormat(item->type, format);
-                                m_engine->updateLocals();
+                               setTypeFormat(item->type, format);
+                               m_engine->updateLocals();
                            });
     }
+
+    addAction(menu, tr("Reset All Formats for Types"), true, [this]() {
+        theTypeFormats.clear();
+        saveFormats();
+        m_engine->updateLocals();
+    });
 
     return menu;
 }

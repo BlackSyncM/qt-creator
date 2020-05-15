@@ -38,11 +38,13 @@
 
 #include <utils/qtcassert.h>
 #include <utils/environment.h>
+#include <utils/fileutils.h>
 #include <utils/hostosinfo.h>
 #include <utils/infolabel.h>
 #include <utils/pathchooser.h>
 #include <utils/qtcprocess.h>
 #include <utils/runextensions.h>
+#include <utils/synchronousprocess.h>
 #include <utils/utilsicons.h>
 #include <projectexplorer/toolchainmanager.h>
 #include <projectexplorer/kitmanager.h>
@@ -160,7 +162,8 @@ private:
 
 enum JavaValidation {
     JavaPathExistsRow,
-    JavaJdkValidRow
+    JavaJdkValidRow,
+    JavaJdkValidVersionRow
 };
 
 enum AndroidValidation {
@@ -437,6 +440,7 @@ AndroidSettingsWidget::AndroidSettingsWidget()
     QMap<int, QString> javaValidationPoints;
     javaValidationPoints[JavaPathExistsRow] = tr("JDK path exists.");
     javaValidationPoints[JavaJdkValidRow] = tr("JDK path is a valid JDK root folder.");
+    javaValidationPoints[JavaJdkValidVersionRow] = tr("Working JDK version (8) detected.");
     auto javaSummary = new SummaryWidget(javaValidationPoints, tr("Java Settings are OK."),
                                          tr("Java settings have errors."), m_ui->javaDetailsWidget);
     m_ui->javaDetailsWidget->setWidget(javaSummary);
@@ -478,21 +482,21 @@ AndroidSettingsWidget::AndroidSettingsWidget()
     Utils::FilePath currentJdkPath = m_androidConfig.openJDKLocation();
     if (currentJdkPath.isEmpty())
         currentJdkPath = findJdkInCommonPaths();
-    m_ui->OpenJDKLocationPathChooser->setFileName(currentJdkPath);
+    m_ui->OpenJDKLocationPathChooser->setFilePath(currentJdkPath);
     m_ui->OpenJDKLocationPathChooser->setPromptDialogTitle(tr("Select JDK Path"));
 
     Utils::FilePath currentSDKPath = m_androidConfig.sdkLocation();
     if (currentSDKPath.isEmpty())
         currentSDKPath = getDefaultSdkPath();
 
-    m_ui->SDKLocationPathChooser->setFileName(currentSDKPath);
+    m_ui->SDKLocationPathChooser->setFilePath(currentSDKPath);
     m_ui->SDKLocationPathChooser->setPromptDialogTitle(tr("Select Android SDK folder"));
 
     m_ui->openSslPathChooser->setPromptDialogTitle(tr("Select OpenSSL Include Project File"));
     Utils::FilePath currentOpenSslPath = m_androidConfig.openSslLocation();
     if (currentOpenSslPath.isEmpty())
         currentOpenSslPath = currentSDKPath.pathAppended("android_openssl");
-    m_ui->openSslPathChooser->setFileName(currentOpenSslPath);
+    m_ui->openSslPathChooser->setFilePath(currentOpenSslPath);
 
     m_ui->DataPartitionSizeSpinBox->setValue(m_androidConfig.partitionSize());
     m_ui->CreateKitCheckBox->setChecked(m_androidConfig.automaticKitCreation());
@@ -507,13 +511,12 @@ AndroidSettingsWidget::AndroidSettingsWidget()
     m_ui->downloadNDKToolButton->setIcon(downloadIcon);
     m_ui->downloadOpenJDKToolButton->setIcon(downloadIcon);
     m_ui->downloadOpenSSLPrebuiltLibs->setIcon(downloadIcon);
-    m_ui->sdkToolsAutoDownloadButton->setIcon(Utils::Icons::RELOAD.icon());
     m_ui->sdkToolsAutoDownloadButton->setToolTip(tr(
             "Automatically download Android SDK Tools to selected location.\n\n"
             "If the selected path contains no valid SDK Tools, the SDK Tools package "
             "is downloaded from %1, and extracted to the selected path.\n"
             "After the SDK Tools are properly set up, you are prompted to install "
-            "any essential packages required for Qt to build for Android.\n")
+            "any essential packages required for Qt to build for Android.")
                                                  .arg(m_androidConfig.sdkToolsUrl().toString()));
 
     connect(m_ui->SDKLocationPathChooser, &Utils::PathChooser::rawPathChanged,
@@ -625,21 +628,38 @@ void AndroidSettingsWidget::updateAvds()
 
 void AndroidSettingsWidget::validateJdk()
 {
-    auto javaPath = Utils::FilePath::fromUserInput(m_ui->OpenJDKLocationPathChooser->rawPath());
-    m_androidConfig.setOpenJDKLocation(javaPath);
+    m_androidConfig.setOpenJDKLocation(m_ui->OpenJDKLocationPathChooser->filePath());
     bool jdkPathExists = m_androidConfig.openJDKLocation().exists();
     auto summaryWidget = static_cast<SummaryWidget *>(m_ui->javaDetailsWidget->widget());
     summaryWidget->setPointValid(JavaPathExistsRow, jdkPathExists);
 
     const Utils::FilePath bin = m_androidConfig.openJDKLocation().pathAppended("bin/javac" QTC_HOST_EXE_SUFFIX);
     summaryWidget->setPointValid(JavaJdkValidRow, jdkPathExists && bin.exists());
+
+    bool jdkVersionCorrect = false;
+    Utils::SynchronousProcess javacProcess;
+    const int timeoutS = 5;
+    javacProcess.setTimeoutS(timeoutS);
+    const Utils::CommandLine cmd(bin, {"-version"});
+    Utils::SynchronousProcessResponse response = javacProcess.runBlocking(cmd);
+    if (response.result == Utils::SynchronousProcessResponse::Finished) {
+        QString output = response.stdOut(); // JDK 14 uses stdOut for this output.
+        if (output.isEmpty())
+            output = response.stdErr(); // JDK 8 uses stdErr for this output.
+        if (output.startsWith("javac ")) {
+            const QVersionNumber javacVersion = QVersionNumber::fromString(output.mid(6));
+            if (QVersionNumber(1, 8).isPrefixOf(javacVersion))
+                jdkVersionCorrect = true;
+        }
+    }
+    summaryWidget->setPointValid(JavaJdkValidVersionRow, jdkVersionCorrect);
+
     updateUI();
 }
 
 void AndroidSettingsWidget::validateOpenSsl()
 {
-    auto openSslPath = Utils::FilePath::fromUserInput(m_ui->openSslPathChooser->rawPath());
-    m_androidConfig.setOpenSslLocation(openSslPath);
+    m_androidConfig.setOpenSslLocation(m_ui->openSslPathChooser->filePath());
 
     auto summaryWidget = static_cast<SummaryWidget *>(m_ui->openSslDetailsWidget->widget());
     summaryWidget->setPointValid(OpenSslPathExistsRow, m_androidConfig.openSslLocation().exists());
@@ -795,7 +815,7 @@ void AndroidSettingsWidget::openOpenJDKDownloadUrl()
 
 void AndroidSettingsWidget::downloadOpenSslRepo(const bool silent)
 {
-    const Utils::FilePath openSslPath = m_ui->openSslPathChooser->fileName();
+    const Utils::FilePath openSslPath = m_ui->openSslPathChooser->filePath();
     const QString openSslCloneTitle(tr("OpenSSL Cloning"));
 
     auto openSslSummaryWidget = static_cast<SummaryWidget *>(m_ui->openSslDetailsWidget->widget());
@@ -981,7 +1001,7 @@ void AndroidSettingsWidget::downloadSdk()
         if (javaSummaryWidget->allRowsOk()) {
             auto javaPath = Utils::FilePath::fromUserInput(m_ui->OpenJDKLocationPathChooser->rawPath());
             m_sdkDownloader->downloadAndExtractSdk(javaPath.toString(),
-                                                 m_ui->SDKLocationPathChooser->path());
+                                                 m_ui->SDKLocationPathChooser->filePath().toString());
         }
     }
 }

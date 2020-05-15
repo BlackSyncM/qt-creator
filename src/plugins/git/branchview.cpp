@@ -106,7 +106,7 @@ BranchView::BranchView() :
     auto filterEdit = new Utils::FancyLineEdit(this);
     filterEdit->setFiltering(true);
     connect(filterEdit, &Utils::FancyLineEdit::textChanged,
-            m_filterModel, QOverload<const QString &>::of(&BranchFilterModel::setFilterRegExp));
+            m_filterModel, QOverload<const QString &>::of(&BranchFilterModel::setFilterRegularExpression));
     auto layout = new QVBoxLayout(this);
     layout->addWidget(filterEdit);
     layout->addWidget(m_repositoryLabel);
@@ -319,19 +319,11 @@ bool BranchView::add()
 
     const QStringList localNames = m_model->localBranchNames();
 
-    QString suggestedName;
-    if (isTracked) {
-        const QString suggestedNameBase = trackedBranch.mid(trackedBranch.lastIndexOf('/') + 1);
-        suggestedName = suggestedNameBase;
-        int i = 2;
-        while (localNames.contains(suggestedName)) {
-            suggestedName = suggestedNameBase + QString::number(i);
-            ++i;
-        }
-    }
-
     BranchAddDialog branchAddDialog(localNames, BranchAddDialog::Type::AddBranch, this);
-    branchAddDialog.setBranchName(suggestedName);
+    if (isTracked) {
+        const QString suggestedName = GitClient::suggestedLocalBranchName(localNames, trackedBranch);
+        branchAddDialog.setBranchName(suggestedName);
+    }
     branchAddDialog.setTrackedBranchName(isTracked ? trackedBranch : QString(), !isLocal);
     branchAddDialog.setCheckoutVisible(true);
 
@@ -498,7 +490,7 @@ bool BranchView::reset(const QByteArray &resetType)
         return false;
 
     if (QMessageBox::question(this, tr("Git Reset"), tr("Reset branch \"%1\" to \"%2\"?")
-                              .arg(currentName).arg(branchName),
+                              .arg(currentName, branchName),
                               QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes) {
         GitClient::instance()->reset(m_repository, QLatin1String("--" + resetType), branchName);
         return true;

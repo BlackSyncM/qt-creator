@@ -167,27 +167,26 @@ RunConfiguration::RunConfiguration(Target *target, Core::Id id)
     QTC_CHECK(target && target == this->target());
     connect(target, &Target::parsingFinished, this, &RunConfiguration::update);
 
-    Utils::MacroExpander *expander = macroExpander();
-    expander->setDisplayName(tr("Run Settings"));
-    expander->setAccumulating(true);
-    expander->registerSubProvider([target] {
+    m_expander.setDisplayName(tr("Run Settings"));
+    m_expander.setAccumulating(true);
+    m_expander.registerSubProvider([target] {
         BuildConfiguration *bc = target->activeBuildConfiguration();
         return bc ? bc->macroExpander() : target->macroExpander();
     });
-    expander->registerPrefix("CurrentRun:Env", tr("Variables in the current run environment"),
+    m_expander.registerPrefix("CurrentRun:Env", tr("Variables in the current run environment"),
                              [this](const QString &var) {
         const auto envAspect = aspect<EnvironmentAspect>();
         return envAspect ? envAspect->environment().expandedValueForKey(var) : QString();
     });
 
-    expander->registerVariable(Constants::VAR_CURRENTRUN_WORKINGDIR,
+    m_expander.registerVariable(Constants::VAR_CURRENTRUN_WORKINGDIR,
                                tr("The currently active run configuration's working directory"),
-                               [this, expander] {
+                               [this] {
         const auto wdAspect = aspect<WorkingDirectoryAspect>();
-        return wdAspect ? wdAspect->workingDirectory(expander).toString() : QString();
+        return wdAspect ? wdAspect->workingDirectory(&m_expander).toString() : QString();
     });
 
-    expander->registerVariable(Constants::VAR_CURRENTRUN_NAME,
+    m_expander.registerVariable(Constants::VAR_CURRENTRUN_NAME,
             QCoreApplication::translate("ProjectExplorer", "The currently active run configuration's name."),
             [this] { return displayName(); }, false);
 
@@ -227,7 +226,7 @@ QWidget *RunConfiguration::createConfigurationWidget()
         }
     }
 
-    Core::VariableChooser::addSupportForChildWidgets(widget, macroExpander());
+    Core::VariableChooser::addSupportForChildWidgets(widget, &m_expander);
 
     auto detailsWidget = new Utils::DetailsWidget;
     detailsWidget->setState(DetailsWidget::NoSummary);
@@ -446,17 +445,17 @@ QString RunConfigurationFactory::decoratedTargetName(const QString &targetName, 
 }
 
 QList<RunConfigurationCreationInfo>
-RunConfigurationFactory::availableCreators(Target *parent) const
+RunConfigurationFactory::availableCreators(Target *target) const
 {
-    const QList<BuildTargetInfo> buildTargets = parent->applicationTargets();
+    const QList<BuildTargetInfo> buildTargets = target->buildSystem()->applicationTargets();
     const bool hasAnyQtcRunnable = Utils::anyOf(buildTargets,
                                             Utils::equal(&BuildTargetInfo::isQtcRunnable, true));
     return Utils::transform(buildTargets, [&](const BuildTargetInfo &ti) {
         QString displayName = ti.displayName;
         if (displayName.isEmpty())
-            displayName = decoratedTargetName(ti.buildKey, parent);
+            displayName = decoratedTargetName(ti.buildKey, target);
         else if (m_decorateDisplayNames)
-            displayName = decoratedTargetName(displayName, parent);
+            displayName = decoratedTargetName(displayName, target);
         RunConfigurationCreationInfo rci;
         rci.factory = this;
         rci.id = m_runConfigBaseId;

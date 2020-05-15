@@ -31,6 +31,8 @@
 #include <projectexplorer/buildstep.h>
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/processparameters.h>
+#include <projectexplorer/projectexplorerconstants.h>
+
 #include <utils/fileutils.h>
 
 #include <QStandardPaths>
@@ -47,7 +49,7 @@ NimbleTaskStep::NimbleTaskStep(BuildStepList *parentList, Core::Id id)
 
 bool NimbleTaskStep::init()
 {
-    processParameters()->setEnvironment(buildConfiguration()->environment());
+    processParameters()->setEnvironment(buildEnvironment());
     processParameters()->setWorkingDirectory(project()->projectDirectory());
     return validate() && AbstractProcessStep::init();
 }

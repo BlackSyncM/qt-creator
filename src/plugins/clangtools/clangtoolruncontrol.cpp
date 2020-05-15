@@ -223,8 +223,7 @@ ClangToolRunWorker::ClangToolRunWorker(RunControl *runControl,
     QTC_ASSERT(buildConfiguration, return);
     m_environment = buildConfiguration->environment();
 
-    ToolChain *toolChain = ToolChainKitAspect::toolChain(target->kit(),
-                                                         ProjectExplorer::Constants::CXX_LANGUAGE_ID);
+    ToolChain *toolChain = ToolChainKitAspect::cxxToolChain(target->kit());
     QTC_ASSERT(toolChain, return);
     m_targetTriple = toolChain->originalTargetTriple();
     m_toolChainType = toolChain->typeId();

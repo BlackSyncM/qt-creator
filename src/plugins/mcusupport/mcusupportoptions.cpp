@@ -61,7 +61,7 @@
 namespace McuSupport {
 namespace Internal {
 
-static const int KIT_VERSION = 3; // Bumps up whenever details in Kit creation change
+static const int KIT_VERSION = 4; // Bumps up whenever details in Kit creation change
 
 static QString packagePathFromSettings(const QString &settingsKey, const QString &defaultPath = {})
 {
@@ -85,7 +85,7 @@ McuPackage::McuPackage(const QString &label, const QString &defaultPath,
 
 QString McuPackage::path() const
 {
-    return QFileInfo(m_fileChooser->path() + m_relativePathModifier).absoluteFilePath();
+    return QFileInfo(m_fileChooser->filePath().toString() + m_relativePathModifier).absoluteFilePath();
 }
 
 QString McuPackage::label() const
@@ -185,7 +185,7 @@ void McuPackage::updateStatus()
     m_path = m_fileChooser->rawPath();
     const bool validPath = m_fileChooser->isValid();
     const Utils::FilePath detectionPath = Utils::FilePath::fromString(
-                m_fileChooser->path() + "/" + m_detectionPath);
+                m_fileChooser->filePath().toString() + "/" + m_detectionPath);
     const QString displayDetectionPath = Utils::FilePath::fromString(m_detectionPath).toUserOutput();
     const bool validPackage = m_detectionPath.isEmpty() || detectionPath.exists();
 
@@ -441,14 +441,14 @@ void McuSupportOptions::deletePackagesAndTargets()
 
 const QVersionNumber &McuSupportOptions::supportedQulVersion()
 {
-    static const QVersionNumber v({1, 1, 0});
+    static const QVersionNumber v({1, 1});
     return v;
 }
 
 void McuSupportOptions::setQulDir(const Utils::FilePath &dir)
 {
     deletePackagesAndTargets();
-    Sdk::hardcodedTargetsAndPackages(dir, &packages, &mcuTargets);
+    Sdk::targetsAndPackages(dir, &packages, &mcuTargets);
     //packages.append(qtForMCUsSdkPackage);
     for (auto package : packages) {
         connect(package, &McuPackage::changed, [this](){

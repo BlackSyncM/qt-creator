@@ -45,24 +45,11 @@ using namespace Utils;
 
 namespace Nim {
 
-class NimParser : public ProjectExplorer::IOutputParser
+class NimParser : public ProjectExplorer::OutputTaskParser
 {
-public:
-    void stdOutput(const QString &line) final
+    Result handleLine(const QString &lne, Utils::OutputFormat) override
     {
-        parseLine(line.trimmed());
-        IOutputParser::stdOutput(line);
-    }
-
-    void stdError(const QString &line) final
-    {
-        parseLine(line.trimmed());
-        IOutputParser::stdError(line);
-    }
-
-private:
-    void parseLine(const QString &line)
-    {
+        const QString line = lne.trimmed();
         static QRegularExpression regex("(.+.nim)\\((\\d+), (\\d+)\\) (.+)",
                                         QRegularExpression::OptimizeOnFirstUsageOption);
         static QRegularExpression warning("(Warning):(.*)",
@@ -72,13 +59,13 @@ private:
 
         QRegularExpressionMatch match = regex.match(line);
         if (!match.hasMatch())
-            return;
+            return Status::NotHandled;
         const QString filename = match.captured(1);
         bool lineOk = false;
         const int lineNumber = match.captured(2).toInt(&lineOk);
         const QString message = match.captured(4);
         if (!lineOk)
-            return;
+            return Status::NotHandled;
 
         Task::TaskType type = Task::Unknown;
 
@@ -87,9 +74,14 @@ private:
         else if (error.match(message).hasMatch())
             type = Task::Error;
         else
-            return;
+            return Status::NotHandled;
 
-        emit addTask(CompileTask(type, message, FilePath::fromUserInput(filename), lineNumber));
+        const CompileTask t(type, message, absoluteFilePath(FilePath::fromUserInput(filename)),
+                            lineNumber);
+        LinkSpecs linkSpecs;
+        addLinkSpecForAbsoluteFilePath(linkSpecs, t.file, t.line, match, 1);
+        scheduleTask(t, 1);
+        return {Status::Done, linkSpecs};
     }
 };
 
@@ -106,18 +98,17 @@ NimCompilerBuildStep::NimCompilerBuildStep(BuildStepList *parentList, Core::Id i
             this, &NimCompilerBuildStep::updateProcessParameters);
     connect(this, &NimCompilerBuildStep::outFilePathChanged,
             bc, &NimBuildConfiguration::outFilePathChanged);
-    connect(bc->target()->project(), &ProjectExplorer::Project::fileListChanged,
+    connect(project(), &ProjectExplorer::Project::fileListChanged,
             this, &NimCompilerBuildStep::updateTargetNimFile);
     updateProcessParameters();
 }
 
-bool NimCompilerBuildStep::init()
+void NimCompilerBuildStep::setupOutputFormatter(OutputFormatter *formatter)
 {
-    setOutputParser(new NimParser());
-    if (IOutputParser *parser = target()->kit()->createOutputParser())
-        appendOutputParser(parser);
-    outputParser()->setWorkingDirectory(processParameters()->effectiveWorkingDirectory());
-    return AbstractProcessStep::init();
+    formatter->addLineParser(new NimParser);
+    formatter->addLineParsers(target()->kit()->createOutputParsers());
+    formatter->addSearchDir(processParameters()->effectiveWorkingDirectory());
+    AbstractProcessStep::setupOutputFormatter(formatter);
 }
 
 BuildStepConfigWidget *NimCompilerBuildStep::createConfigWidget()
@@ -208,17 +199,13 @@ void NimCompilerBuildStep::updateProcessParameters()
 
 void NimCompilerBuildStep::updateOutFilePath()
 {
-    auto bc = qobject_cast<NimBuildConfiguration *>(buildConfiguration());
-    QTC_ASSERT(bc, return);
     const QString targetName = Utils::HostOsInfo::withExecutableSuffix(m_targetNimFile.toFileInfo().baseName());
-    setOutFilePath(bc->buildDirectory().pathAppended(targetName));
+    setOutFilePath(buildDirectory().pathAppended(targetName));
 }
 
 void NimCompilerBuildStep::updateWorkingDirectory()
 {
-    auto bc = qobject_cast<NimBuildConfiguration *>(buildConfiguration());
-    QTC_ASSERT(bc, return);
-    processParameters()->setWorkingDirectory(bc->buildDirectory());
+    processParameters()->setWorkingDirectory(buildDirectory());
 }
 
 void NimCompilerBuildStep::updateCommand()
@@ -257,9 +244,7 @@ void NimCompilerBuildStep::updateCommand()
 
 void NimCompilerBuildStep::updateEnvironment()
 {
-    auto bc = qobject_cast<NimBuildConfiguration *>(buildConfiguration());
-    QTC_ASSERT(bc, return);
-    processParameters()->setEnvironment(bc->environment());
+    processParameters()->setEnvironment(buildEnvironment());
 }
 
 void NimCompilerBuildStep::updateTargetNimFile()
@@ -321,7 +306,7 @@ void NimPlugin::testNimParser_data()
     QTest::newRow("Parse error string")
             << QString::fromLatin1("main.nim(23, 1) Error: undeclared identifier: 'x'")
             << OutputParserTester::STDERR
-            << QString("") << QString("main.nim(23, 1) Error: undeclared identifier: 'x'\n")
+            << QString() << QString()
             << Tasks({CompileTask(Task::Error,
                                   "Error: undeclared identifier: 'x'",
                                   FilePath::fromUserInput("main.nim"), 23)})
@@ -330,7 +315,7 @@ void NimPlugin::testNimParser_data()
     QTest::newRow("Parse warning string")
             << QString::fromLatin1("lib/pure/parseopt.nim(56, 34) Warning: quoteIfContainsWhite is deprecated [Deprecated]")
             << OutputParserTester::STDERR
-            << QString("") << QString("lib/pure/parseopt.nim(56, 34) Warning: quoteIfContainsWhite is deprecated [Deprecated]\n")
+            << QString() << QString()
             << Tasks({CompileTask(Task::Warning,
                                   "Warning: quoteIfContainsWhite is deprecated [Deprecated]",
                                    FilePath::fromUserInput("lib/pure/parseopt.nim"), 56)})
@@ -340,7 +325,7 @@ void NimPlugin::testNimParser_data()
 void NimPlugin::testNimParser()
 {
     OutputParserTester testbench;
-    testbench.appendOutputParser(new NimParser);
+    testbench.addLineParser(new NimParser);
     QFETCH(QString, input);
     QFETCH(OutputParserTester::Channel, inputChannel);
     QFETCH(Tasks, tasks);

@@ -32,6 +32,8 @@ namespace Nim {
 
 class NimToolChain : public ProjectExplorer::ToolChain
 {
+    Q_DECLARE_TR_FUNCTIONS(Nim::NimToolChain)
+
 public:
     NimToolChain();
     explicit NimToolChain(Core::Id typeId);
@@ -54,7 +56,7 @@ public:
     Utils::FilePath compilerCommand() const final;
     QString compilerVersion() const;
     void setCompilerCommand(const Utils::FilePath &compilerCommand);
-    ProjectExplorer::IOutputParser *outputParser() const final;
+    QList<Utils::OutputLineParser *> createOutputParsers() const final;
     std::unique_ptr<ProjectExplorer::ToolChainConfigWidget> createConfigurationWidget() final;
 
     QVariantMap toMap() const final;

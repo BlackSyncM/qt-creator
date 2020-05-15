@@ -370,9 +370,9 @@ void AttachCoreDialog::coreFileChanged(const QString &core)
         Runnable debugger = DebuggerKitAspect::runnable(k);
         CoreInfo cinfo = CoreInfo::readExecutableNameFromCore(debugger, core);
         if (!cinfo.foundExecutableName.isEmpty())
-            d->symbolFileName->setFileName(FilePath::fromString(cinfo.foundExecutableName));
+            d->symbolFileName->setFilePath(FilePath::fromString(cinfo.foundExecutableName));
         else if (!d->symbolFileName->isValid() && !cinfo.rawStringFromCore.isEmpty())
-            d->symbolFileName->setFileName(FilePath::fromString(cinfo.rawStringFromCore));
+            d->symbolFileName->setFilePath(FilePath::fromString(cinfo.rawStringFromCore));
     }
     changed();
 }
@@ -412,12 +412,12 @@ void AttachCoreDialog::selectRemoteCoreFile()
 
 QString AttachCoreDialog::localCoreFile() const
 {
-    return d->localCoreFileName->path();
+    return d->localCoreFileName->filePath().toString();
 }
 
 FilePath AttachCoreDialog::symbolFile() const
 {
-    return d->symbolFileName->fileName();
+    return d->symbolFileName->filePath();
 }
 
 void AttachCoreDialog::setSymbolFile(const QString &symbolFileName)
@@ -462,7 +462,7 @@ Kit *AttachCoreDialog::kit() const
 
 QString AttachCoreDialog::overrideStartScript() const
 {
-    return d->overrideStartScriptFileName->path();
+    return d->overrideStartScriptFileName->filePath().toString();
 }
 
 void AttachCoreDialog::setOverrideStartScript(const QString &scriptName)

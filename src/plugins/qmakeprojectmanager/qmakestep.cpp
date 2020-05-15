@@ -142,16 +142,14 @@ QString QMakeStep::allArguments(const BaseQtVersion *v, ArgumentFlags flags) con
 
 QMakeStepConfig QMakeStep::deducedArguments() const
 {
-    ProjectExplorer::Kit *kit = target()->kit();
+    Kit *kit = target()->kit();
     QMakeStepConfig config;
-    ProjectExplorer::ToolChain *tc
-            = ProjectExplorer::ToolChainKitAspect::toolChain(kit, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
-    ProjectExplorer::Abi targetAbi;
-    if (tc) {
+    Abi targetAbi;
+    if (ToolChain *tc = ToolChainKitAspect::cxxToolChain(kit)) {
         targetAbi = tc->targetAbi();
         if (HostOsInfo::isWindowsHost()
             && tc->typeId() == ProjectExplorer::Constants::CLANG_TOOLCHAIN_TYPEID) {
-            config.sysRoot = ProjectExplorer::SysRootKitAspect::sysRoot(kit).toString();
+            config.sysRoot = SysRootKitAspect::sysRoot(kit).toString();
             config.targetTriple = tc->originalTargetTriple();
         }
     }
@@ -181,7 +179,7 @@ bool QMakeStep::init()
     FilePath workingDirectory;
 
     if (qmakeBc->subNodeBuild())
-        workingDirectory = qmakeBc->subNodeBuild()->buildDir(qmakeBc);
+        workingDirectory = qmakeBc->qmakeBuildSystem()->buildDir(qmakeBc->subNodeBuild()->filePath());
     else
         workingDirectory = qmakeBc->buildDirectory();
 
@@ -227,8 +225,6 @@ bool QMakeStep::init()
     pp->setWorkingDirectory(workingDirectory);
     pp->setEnvironment(qmakeBc->environment());
 
-    setOutputParser(new QMakeParser);
-
     QmakeProFileNode *node = static_cast<QmakeProFileNode *>(qmakeBc->project()->rootProjectNode());
     if (qmakeBc->subNodeBuild())
         node = qmakeBc->subNodeBuild();
@@ -254,6 +250,13 @@ bool QMakeStep::init()
     m_scriptTemplate = node->projectType() == ProjectType::ScriptTemplate;
 
     return AbstractProcessStep::init();
+}
+
+void QMakeStep::setupOutputFormatter(OutputFormatter *formatter)
+{
+    formatter->addLineParser(new QMakeParser);
+    m_outputFormatter = formatter;
+    AbstractProcessStep::setupOutputFormatter(formatter);
 }
 
 void QMakeStep::doRun()
@@ -334,15 +337,15 @@ void QMakeStep::runNextCommand()
     case State::IDLE:
         return;
     case State::RUN_QMAKE:
-        setOutputParser(new QMakeParser);
+        m_outputFormatter->setLineParsers({new QMakeParser});
         m_nextState = (m_runMakeQmake ? State::RUN_MAKE_QMAKE_ALL : State::POST_PROCESS);
         startOneCommand(m_qmakeCommand);
         return;
     case State::RUN_MAKE_QMAKE_ALL:
         {
             auto *parser = new GnuMakeParser;
-            parser->setWorkingDirectory(processParameters()->workingDirectory().toString());
-            setOutputParser(parser);
+            parser->addSearchDir(processParameters()->workingDirectory());
+            m_outputFormatter->setLineParsers({parser});
             m_nextState = State::POST_PROCESS;
             startOneCommand(m_makeCommand);
         }
@@ -584,14 +587,8 @@ QMakeStepConfigWidget::QMakeStepConfigWidget(QMakeStep *step)
     connect(step->target(), &Target::kitChanged, this, &QMakeStepConfigWidget::qtVersionChanged);
     connect(abisListWidget, &QListWidget::itemChanged, this, [this]{
         abisChanged();
-        QmakeBuildConfiguration *bc = m_step->qmakeBuildConfiguration();
-        if (!bc)
-            return;
-
-        QList<ProjectExplorer::BuildStepList *> stepLists;
-        const Core::Id clean = ProjectExplorer::Constants::BUILDSTEPS_CLEAN;
-        stepLists << bc->cleanSteps();
-        BuildManager::buildLists(stepLists, {ProjectExplorerPlugin::displayNameForStepId(clean)});
+        if (QmakeBuildConfiguration *bc = m_step->qmakeBuildConfiguration())
+            BuildManager::buildLists({bc->cleanSteps()});
     });
     auto chooser = new Core::VariableChooser(qmakeAdditonalArgumentsLineEdit);
     chooser->addMacroExpanderProvider([step] { return step->macroExpander(); });
@@ -779,15 +776,8 @@ void QMakeStepConfigWidget::updateEffectiveQMakeCall()
 void QMakeStepConfigWidget::recompileMessageBoxFinished(int button)
 {
     if (button == QMessageBox::Yes) {
-        BuildConfiguration *bc = m_step->buildConfiguration();
-        if (!bc)
-            return;
-
-        const Core::Id clean = ProjectExplorer::Constants::BUILDSTEPS_CLEAN;
-        const Core::Id build = ProjectExplorer::Constants::BUILDSTEPS_BUILD;
-        BuildManager::buildLists({bc->cleanSteps(), bc->buildSteps()},
-                                 QStringList() << ProjectExplorerPlugin::displayNameForStepId(clean)
-                       << ProjectExplorerPlugin::displayNameForStepId(build));
+        if (BuildConfiguration *bc = m_step->buildConfiguration())
+            BuildManager::buildLists({bc->cleanSteps(), bc->buildSteps()});
     }
 }
 

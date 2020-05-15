@@ -573,7 +573,7 @@ ClangTool::ClangTool()
     menu->addAction(ActionManager::registerAction(action, "ClangTidyClazy.Action"),
                     Debugger::Constants::G_ANALYZER_TOOLS);
     QObject::connect(action, &QAction::triggered, this, [this]() {
-        startTool(FileSelection::AskUser);
+        startTool(FileSelectionType::AskUser);
     });
     QObject::connect(m_startAction, &QAction::triggered, action, &QAction::triggered);
     QObject::connect(m_startAction, &QAction::changed, action, [action, this] {
@@ -581,7 +581,7 @@ ClangTool::ClangTool()
     });
 
     QObject::connect(m_startOnCurrentFileAction, &QAction::triggered, this, [this] {
-        startTool(FileSelection::CurrentFile);
+        startTool(FileSelectionType::CurrentFile);
     });
 
     m_perspective.addToolBarAction(m_startAction);
@@ -647,7 +647,6 @@ static bool continueDespiteReleaseBuild(const QString &toolName)
            == QDialogButtonBox::Yes;
 }
 
-
 void ClangTool::startTool(ClangTool::FileSelection fileSelection,
                           const RunSettings &runSettings,
                           const CppTools::ClangDiagnosticConfig &diagnosticConfig)
@@ -686,7 +685,9 @@ void ClangTool::startTool(ClangTool::FileSelection fileSelection,
     connect(m_runControl, &RunControl::stopped, this, &ClangTool::onRunControlStopped);
 
     // Run worker
-    const bool preventBuild = fileSelection == FileSelection::CurrentFile;
+    const bool preventBuild = holds_alternative<FilePath>(fileSelection)
+                              || get<FileSelectionType>(fileSelection)
+                                     == FileSelectionType::CurrentFile;
     const bool buildBeforeAnalysis = !preventBuild && runSettings.buildBeforeAnalysis();
     m_runWorker = new ClangToolRunWorker(m_runControl,
                                          runSettings,
@@ -696,9 +697,12 @@ void ClangTool::startTool(ClangTool::FileSelection fileSelection,
     connect(m_runWorker, &ClangToolRunWorker::buildFailed,this, &ClangTool::onBuildFailed);
     connect(m_runWorker, &ClangToolRunWorker::startFailed, this, &ClangTool::onStartFailed);
     connect(m_runWorker, &ClangToolRunWorker::started, this, &ClangTool::onStarted);
-    connect(m_runWorker, &ClangToolRunWorker::runnerFinished,
-            this, &ClangTool::updateForCurrentState);
-    connect(m_runControl, &RunControl::destroyed, [this](){ m_runWorker = nullptr; });
+    connect(m_runWorker, &ClangToolRunWorker::runnerFinished, this, [this]() {
+        m_filesCount = m_runWorker->totalFilesToAnalyze();
+        m_filesSucceeded = m_runWorker->filesAnalyzed();
+        m_filesFailed = m_runWorker->filesNotAnalyzed();
+        updateForCurrentState();
+    });
 
     // More init and UI update
     m_diagnosticFilterModel->setProject(project);
@@ -734,15 +738,21 @@ Diagnostics ClangTool::read(OutputFileFormat outputFileFormat,
 
 FileInfos ClangTool::collectFileInfos(Project *project, FileSelection fileSelection)
 {
+    FileSelectionType *selectionType = get_if<FileSelectionType>(&fileSelection);
+    // early bailout
+    if (selectionType && *selectionType == FileSelectionType::CurrentFile
+        && !EditorManager::currentDocument())
+        return {};
+
     auto projectInfo = CppTools::CppModelManager::instance()->projectInfo(project);
     QTC_ASSERT(projectInfo.isValid(), return FileInfos());
 
     const FileInfos allFileInfos = sortedFileInfos(projectInfo.projectParts());
 
-    if (fileSelection == FileSelection::AllFiles)
+    if (selectionType && *selectionType == FileSelectionType::AllFiles)
         return allFileInfos;
 
-    if (fileSelection == FileSelection::AskUser) {
+    if (selectionType && *selectionType == FileSelectionType::AskUser) {
         static int initialProviderIndex = 0;
         SelectableFilesDialog dialog(projectInfo,
                                      fileInfoProviders(project, allFileInfos),
@@ -753,18 +763,15 @@ FileInfos ClangTool::collectFileInfos(Project *project, FileSelection fileSelect
         return dialog.fileInfos();
     }
 
-    if (fileSelection == FileSelection::CurrentFile) {
-        if (const IDocument *document = EditorManager::currentDocument()) {
-            const Utils::FilePath filePath = document->filePath();
-            if (!filePath.isEmpty()) {
-                const FileInfo fileInfo = Utils::findOrDefault(allFileInfos,
-                                                               [&](const FileInfo &fi) {
-                                                                   return fi.file == filePath;
-                                                               });
-                if (!fileInfo.file.isEmpty())
-                    return {fileInfo};
-            }
-        }
+    const FilePath filePath = holds_alternative<FilePath>(fileSelection)
+                                  ? get<FilePath>(fileSelection)
+                                  : EditorManager::currentDocument()->filePath(); // see early bailout
+    if (!filePath.isEmpty()) {
+        const FileInfo fileInfo = Utils::findOrDefault(allFileInfos, [&](const FileInfo &fi) {
+            return fi.file == filePath;
+        });
+        if (!fileInfo.file.isEmpty())
+            return {fileInfo};
     }
 
     return {};
@@ -857,6 +864,10 @@ void ClangTool::reset()
     m_state = State::Initial;
     m_runControl = nullptr;
     m_runWorker = nullptr;
+
+    m_filesCount = 0;
+    m_filesSucceeded = 0;
+    m_filesFailed = 0;
 }
 
 static bool canAnalyzeProject(Project *project)
@@ -868,7 +879,7 @@ static bool canAnalyzeProject(Project *project)
                                              || project->projectLanguages().contains(cxx);
         return projectSupportsLanguage
                && CppModelManager::instance()->projectInfo(project).isValid()
-               && ToolChainKitAspect::toolChain(target->kit(), cxx);
+               && ToolChainKitAspect::cxxToolChain(target->kit());
     }
     return false;
 }
@@ -1039,8 +1050,6 @@ void ClangTool::onRunControlStopped()
 void ClangTool::update()
 {
     updateForInitialState();
-    if (!m_runWorker)
-        return;
     updateForCurrentState();
 }
 
@@ -1162,9 +1171,9 @@ void ClangTool::updateForCurrentState()
 
     // Info bar: errors
     const bool hasErrorText = !m_infoBarWidget->errorText().isEmpty();
-    const bool hasErrors = m_runWorker && m_runWorker->filesNotAnalyzed() > 0;
+    const bool hasErrors = m_filesFailed > 0;
     if (hasErrors && !hasErrorText) {
-        const QString text = makeLink( tr("Failed to analyze %1 files.").arg(m_runWorker->filesNotAnalyzed()));
+        const QString text = makeLink( tr("Failed to analyze %1 files.").arg(m_filesFailed));
         m_infoBarWidget->setError(InfoBarWidget::Warning, text, [this]() { showOutputPane(); });
     }
 
@@ -1177,12 +1186,12 @@ void ClangTool::updateForCurrentState()
         break;
     case State::AnalyzerRunning:
         showProgressIcon = true;
-        if (m_runWorker->totalFilesToAnalyze() == 0) {
+        if (m_filesCount == 0) {
             infoText = tr("Analyzing..."); // Not yet fully started/initialized
         } else {
             infoText = tr("Analyzing... %1 of %2 files processed.")
-                           .arg(m_runWorker->filesAnalyzed() + m_runWorker->filesNotAnalyzed())
-                           .arg(m_runWorker->totalFilesToAnalyze());
+                           .arg(m_filesSucceeded + m_filesFailed)
+                           .arg(m_filesCount);
         }
         break;
     case State::PreparationStarted:
@@ -1195,7 +1204,7 @@ void ClangTool::updateForCurrentState()
         infoText = tr("Analysis stopped by user.");
         break;
     case State::AnalyzerFinished:
-        infoText = tr("Finished processing %1 files.").arg(m_runWorker->totalFilesToAnalyze());
+        infoText = tr("Finished processing %1 files.").arg(m_filesCount);
         break;
     case State::ImportFinished:
         infoText = tr("Diagnostics imported.");
@@ -1208,7 +1217,7 @@ void ClangTool::updateForCurrentState()
     // Info bar: diagnostic stats
     QString diagText;
     if (issuesFound) {
-        diagText = tr("%1 diagnostics. %2 fixits, %4 selected.")
+        diagText = tr("%1 diagnostics. %2 fixits, %3 selected.")
                    .arg(issuesVisible)
                    .arg(m_diagnosticFilterModel->fixitsScheduable())
                    .arg(m_diagnosticFilterModel->fixitsScheduled());

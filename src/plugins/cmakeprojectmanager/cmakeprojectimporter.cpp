@@ -25,14 +25,13 @@
 
 #include "cmakeprojectimporter.h"
 
-#include "builddirmanager.h"
 #include "cmakebuildconfiguration.h"
+#include "cmakebuildsystem.h"
 #include "cmakekitinformation.h"
 #include "cmaketoolmanager.h"
 
 #include <projectexplorer/buildinfo.h>
-#include <projectexplorer/kit.h>
-#include <projectexplorer/kitmanager.h>
+#include <projectexplorer/kitinformation.h>
 #include <projectexplorer/projectexplorerconstants.h>
 
 #include <qtsupport/qtkitinformation.h>
@@ -40,9 +39,7 @@
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
 
-#include <QDebug>
 #include <QDir>
-#include <QFileInfo>
 #include <QLoggingCategory>
 
 using namespace ProjectExplorer;
@@ -232,7 +229,7 @@ QList<void *> CMakeProjectImporter::examineDirectory(const Utils::FilePath &impo
     }
 
     QString errorMessage;
-    const CMakeConfig config = BuildDirManager::parseCMakeConfiguration(cacheFile, &errorMessage);
+    const CMakeConfig config = CMakeBuildSystem::parseCMakeCacheDotTxt(cacheFile, &errorMessage);
     if (config.isEmpty() || !errorMessage.isEmpty()) {
         qCDebug(cmInputLog()) << "Failed to read configuration from" << cacheFile << errorMessage;
         return { };

@@ -26,16 +26,16 @@
 #pragma once
 
 #include "qmakeprojectmanager_global.h"
-#include "qmakeprojectmanager.h"
+
 #include "qmakenodes.h"
 #include "qmakeparsernodes.h"
 
 #include <projectexplorer/deploymentdata.h>
 #include <projectexplorer/project.h>
+#include <projectexplorer/toolchain.h>
 
 #include <QStringList>
 #include <QFutureInterface>
-#include <QTimer>
 #include <QFuture>
 
 QT_BEGIN_NAMESPACE
@@ -48,6 +48,8 @@ namespace ProjectExplorer { class DeploymentData; }
 namespace QtSupport { class ProFileReader; }
 
 namespace QmakeProjectManager {
+
+class QmakeBuildConfiguration;
 
 namespace Internal { class CentralizedFolderWatcher; }
 
@@ -166,10 +168,19 @@ public:
 
     void notifyChanged(const Utils::FilePath &name);
 
-public:
+    enum Action { BUILD, REBUILD, CLEAN };
+    void buildHelper(Action action, bool isFileBuild,
+                     QmakeProFileNode *profile,
+                     ProjectExplorer::FileNode *buildableFile);
+
+    Utils::FilePath buildDir(const Utils::FilePath &proFilePath) const;
+    QmakeBuildConfiguration *qmakeBuildConfiguration() const;
+
+    void scheduleUpdateAllNowOrLater();
+
+private:
     void scheduleUpdateAll(QmakeProFile::AsyncUpdateDelay delay);
     void scheduleUpdateAllLater() { scheduleUpdateAll(QmakeProFile::ParseLater); }
-    void scheduleUpdateAllNowOrLater();
 
     mutable QSet<const QPair<Utils::FilePath, Utils::FilePath>> m_toolChainWarnings;
 
@@ -188,7 +199,6 @@ public:
 
     QString m_qmakeSysroot;
 
-    QTimer m_asyncUpdateTimer;
     QFutureInterface<void> m_asyncUpdateFutureInterface;
     int m_pendingEvaluateFuturesCount = 0;
     AsyncUpdateState m_asyncUpdateState = Base;
@@ -200,7 +210,6 @@ public:
     Internal::CentralizedFolderWatcher *m_centralizedFolderWatcher = nullptr;
 
     ProjectExplorer::BuildSystem::ParseGuard m_guard;
-    QmakeBuildConfiguration *m_buildConfiguration = nullptr;
     bool m_firstParseNeeded = true;
 };
 

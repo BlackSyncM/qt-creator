@@ -26,16 +26,17 @@
 #include "runcontrol.h"
 
 #include "devicesupport/desktopdevice.h"
-#include "project.h"
-#include "target.h"
-#include "toolchain.h"
 #include "abi.h"
 #include "buildconfiguration.h"
+#include "customparser.h"
 #include "environmentaspect.h"
 #include "kitinformation.h"
+#include "project.h"
+#include "projectexplorer.h"
 #include "runconfigurationaspects.h"
 #include "session.h"
-#include "kitinformation.h"
+#include "target.h"
+#include "toolchain.h"
 
 #include <utils/algorithm.h>
 #include <utils/checkablemessagebox.h>
@@ -279,7 +280,6 @@ public:
         : q(parent), runMode(mode)
     {
         icon = Icons::RUN_SMALL_TOOLBAR;
-        outputFormatter = new OutputFormatter();
     }
 
     ~RunControlPrivate() override
@@ -289,7 +289,6 @@ public:
         q = nullptr;
         qDeleteAll(m_workers);
         m_workers.clear();
-        delete outputFormatter;
     }
 
     Q_ENUM(RunControlState)
@@ -322,7 +321,7 @@ public:
     IDevice::ConstPtr device;
     Core::Id runMode;
     Utils::Icon icon;
-    MacroExpander *macroExpander;
+    const MacroExpander *macroExpander;
     QPointer<RunConfiguration> runConfiguration; // Not owned. Avoid use.
     QString buildKey;
     QMap<Core::Id, QVariantMap> settingsData;
@@ -334,7 +333,6 @@ public:
     Kit *kit = nullptr; // Not owned.
     QPointer<Target> target; // Not owned.
     QPointer<Project> project; // Not owned.
-    QPointer<Utils::OutputFormatter> outputFormatter = nullptr;
     std::function<bool(bool*)> promptToStop;
     std::vector<RunWorkerFactory> m_factories;
 
@@ -384,11 +382,6 @@ void RunControl::setTarget(Target *target)
         d->buildDirectory = bc->buildDirectory();
         d->buildEnvironment = bc->environment();
     }
-
-    delete d->outputFormatter;
-    d->outputFormatter = OutputFormatterFactory::createFormatter(target);
-    if (!d->outputFormatter)
-        d->outputFormatter = new OutputFormatter();
 
     setKit(target->kit());
     d->project = target->project();
@@ -831,9 +824,17 @@ void RunControlPrivate::showError(const QString &msg)
         q->appendMessage(msg + '\n', ErrorMessageFormat);
 }
 
-Utils::OutputFormatter *RunControl::outputFormatter() const
+QList<Utils::OutputLineParser *> RunControl::createOutputParsers() const
 {
-    return d->outputFormatter;
+    QList<Utils::OutputLineParser *> parsers = OutputFormatterFactory::createFormatters(target());
+    if (const auto customParsersAspect
+            = (runConfiguration() ? runConfiguration()->aspect<CustomParsersAspect>() : nullptr)) {
+        for (const Core::Id id : customParsersAspect->parsers()) {
+            if (CustomParser * const parser = CustomParser::createFromId(id))
+                parsers << parser;
+        }
+    }
+    return parsers;
 }
 
 Core::Id RunControl::runMode() const
@@ -896,7 +897,7 @@ Kit *RunControl::kit() const
     return d->kit;
 }
 
-MacroExpander *RunControl::macroExpander() const
+const MacroExpander *RunControl::macroExpander() const
 {
     return d->macroExpander;
 }
@@ -1214,12 +1215,12 @@ void SimpleTargetRunner::doStart(const Runnable &runnable, const IDevice::ConstP
 
         connect(&m_launcher, &ApplicationLauncher::remoteStderr,
                 this, [this](const QString &output) {
-                    appendMessage(output, Utils::StdErrFormatSameLine, false);
+                    appendMessage(output, Utils::StdErrFormat, false);
                 });
 
         connect(&m_launcher, &ApplicationLauncher::remoteStdout,
                 this, [this](const QString &output) {
-                    appendMessage(output, Utils::StdOutFormatSameLine, false);
+                    appendMessage(output, Utils::StdOutFormat, false);
                 });
 
         connect(&m_launcher, &ApplicationLauncher::finished,
@@ -1601,11 +1602,7 @@ static QList<OutputFormatterFactory *> g_outputFormatterFactories;
 
 OutputFormatterFactory::OutputFormatterFactory()
 {
-    // This is a bit cheating: We know that only two formatters exist right now,
-    // and this here gives the second (python) implicit more priority.
-    // For a final solution, probably all matching formatters should be used
-    // in parallel, so there's no need to invent a fancy priority system here.
-    g_outputFormatterFactories.prepend(this);
+    g_outputFormatterFactories.append(this);
 }
 
 OutputFormatterFactory::~OutputFormatterFactory()
@@ -1613,17 +1610,15 @@ OutputFormatterFactory::~OutputFormatterFactory()
     g_outputFormatterFactories.removeOne(this);
 }
 
-OutputFormatter *OutputFormatterFactory::createFormatter(Target *target)
+QList<OutputLineParser *> OutputFormatterFactory::createFormatters(Target *target)
 {
-    for (auto factory : qAsConst(g_outputFormatterFactories)) {
-        if (auto formatter = factory->m_creator(target))
-            return formatter;
-    }
-    return nullptr;
+    QList<OutputLineParser *> formatters;
+    for (auto factory : qAsConst(g_outputFormatterFactories))
+        formatters << factory->m_creator(target);
+    return formatters;
 }
 
-void OutputFormatterFactory::setFormatterCreator
-    (const std::function<OutputFormatter *(Target *)> &creator)
+void OutputFormatterFactory::setFormatterCreator(const FormatterCreator &creator)
 {
     m_creator = creator;
 }

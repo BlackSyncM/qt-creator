@@ -40,6 +40,7 @@
 
 #include <utils/algorithm.h>
 
+#include <QFileDialog>
 #include <QHeaderView>
 #include <QItemSelection>
 #include <QStringList>
@@ -135,6 +136,38 @@ void WorkspaceView::deleteWorkspaces(const QStringList &workspaces)
     m_workspaceModel.deleteWorkspaces(workspaces);
 }
 
+void WorkspaceView::importWorkspace()
+{
+    static QString lastDir;
+    const QString currentDir = lastDir.isEmpty() ? "" : lastDir;
+    const auto fileName = QFileDialog::getOpenFileName(this,
+                                                       tr("Import Workspace"),
+                                                       currentDir,
+                                                       "Workspaces (*" + m_manager->workspaceFileExtension() + ")");
+
+    if (!fileName.isEmpty())
+        lastDir = QFileInfo(fileName).absolutePath();
+
+    m_workspaceModel.importWorkspace(fileName);
+}
+
+void WorkspaceView::exportCurrentWorkspace()
+{
+    static QString lastDir;
+    const QString currentDir = lastDir.isEmpty() ? "" : lastDir;
+    QFileInfo fileInfo(currentDir, m_manager->workspaceNameToFileName(currentWorkspace()));
+
+    const auto fileName = QFileDialog::getSaveFileName(this,
+                                                       tr("Export Workspace"),
+                                                       fileInfo.absoluteFilePath(),
+                                                       "Workspaces (*" + m_manager->workspaceFileExtension() + ")");
+
+    if (!fileName.isEmpty())
+        lastDir = QFileInfo(fileName).absolutePath();
+
+    m_workspaceModel.exportWorkspace(fileName, currentWorkspace());
+}
+
 void WorkspaceView::cloneCurrentWorkspace()
 {
     m_workspaceModel.cloneWorkspace(this, currentWorkspace());
@@ -187,7 +220,7 @@ void WorkspaceView::showEvent(QShowEvent *event)
 
 void WorkspaceView::keyPressEvent(QKeyEvent *event)
 {
-    if (event->key() != Qt::Key_Delete) {
+    if (event->key() != Qt::Key_Delete && event->key() != Qt::Key_Backspace) {
         TreeView::keyPressEvent(event);
         return;
     }

@@ -109,7 +109,7 @@ QbsInstallStep::~QbsInstallStep()
 
 bool QbsInstallStep::init()
 {
-    QTC_ASSERT(!buildConfiguration()->buildSystem()->isParsing() && !m_session, return false);
+    QTC_ASSERT(!buildSystem()->isParsing() && !m_session, return false);
     return true;
 }
 
@@ -202,9 +202,8 @@ void QbsInstallStep::handleProgress(int value)
 void QbsInstallStep::createTaskAndOutput(Task::TaskType type, const QString &message,
                                          const Utils::FilePath &file, int line)
 {
-    const CompileTask task(type, message, file, line);
-    emit addTask(task, 1);
     emit addOutput(message, OutputFormat::Stdout);
+    emit addTask(CompileTask(type, message, file, line), 1);
 }
 
 void QbsInstallStep::setRemoveFirst(bool rf)

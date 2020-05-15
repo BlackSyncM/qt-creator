@@ -55,7 +55,7 @@ class QTCREATOR_UTILS_EXPORT PathChooser : public QWidget
     Q_PROPERTY(QStringList commandVersionArguments READ commandVersionArguments WRITE setCommandVersionArguments)
     Q_PROPERTY(bool readOnly READ isReadOnly WRITE setReadOnly DESIGNABLE true)
     // Designer does not know this type, so force designable to false:
-    Q_PROPERTY(Utils::FilePath fileName READ fileName WRITE setFileName DESIGNABLE false)
+    Q_PROPERTY(Utils::FilePath filePath READ filePath WRITE setFilePath DESIGNABLE false)
 
 public:
     static QString browseButtonLabel();
@@ -88,10 +88,10 @@ public:
     bool isValid() const;
     QString errorMessage() const;
 
-    QString path() const;
+    FilePath filePath() const;
+
     QString rawPath() const; // The raw unexpanded input.
     FilePath rawFileName() const; // The raw unexpanded input.
-    FilePath fileName() const;
 
     static QString expandedDirectory(const QString &input, const Environment &env,
                                      const QString &baseDir);
@@ -138,6 +138,9 @@ public:
     bool isReadOnly() const;
     void setReadOnly(bool b);
 
+    bool isFileDialogOnly() const;
+    void setFileDialogOnly(bool b);
+
     void triggerChanged();
 
     // global handler for adding context menus to ALL pathchooser
@@ -145,12 +148,18 @@ public:
     using AboutToShowContextMenuHandler = std::function<void (PathChooser *, QMenu *)>;
     static void setAboutToShowContextMenuHandler(AboutToShowContextMenuHandler handler);
 
+    // Deprecated. Use filePath().toString() or better suitable conversions.
+    QString path() const { return filePath().toString(); }
+    // Deprecated. Use filePath()
+    FilePath fileName() const { return filePath(); }
+
 private:
     bool validatePath(FancyLineEdit *edit, QString *errorMessage) const;
     // Returns overridden title or the one from <title>
     QString makeDialogTitle(const QString &title);
     void slotBrowse();
     void contextMenuRequested(const QPoint &pos);
+    void updateReadOnlyStateOfSubwidgets();
 
 signals:
     void validChanged(bool validState);
@@ -163,7 +172,9 @@ signals:
 
 public slots:
     void setPath(const QString &);
-    void setFileName(const FilePath &);
+    // Deprecated: Use setFilePath()
+    void setFileName(const FilePath &path) { setFilePath(path); }
+    void setFilePath(const FilePath &);
 
 private:
     PathChooserPrivate *d = nullptr;

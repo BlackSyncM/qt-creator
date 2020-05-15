@@ -175,13 +175,15 @@ public:
     Environment m_environment;
     BinaryVersionToolTipEventFilter *m_binaryVersionToolTipEventFilter = nullptr;
     QList<QAbstractButton *> m_buttons;
-    MacroExpander *m_macroExpander;
+    MacroExpander *m_macroExpander = globalMacroExpander();
+
+    bool m_isReadOnly = false;
+    bool m_isFileDialogOnly = false;
 };
 
-PathChooserPrivate::PathChooserPrivate() :
-    m_hLayout(new QHBoxLayout),
-    m_lineEdit(new FancyLineEdit),
-    m_macroExpander(globalMacroExpander())
+PathChooserPrivate::PathChooserPrivate()
+    : m_hLayout(new QHBoxLayout)
+    , m_lineEdit(new FancyLineEdit)
 {
 }
 
@@ -223,9 +225,13 @@ PathChooser::PathChooser(QWidget *parent) :
 {
     d->m_hLayout->setContentsMargins(0, 0, 0, 0);
 
-    d->m_lineEdit->setContextMenuPolicy(Qt::CustomContextMenu);
+    setContextMenuPolicy(Qt::CustomContextMenu);
+    d->m_lineEdit->setContextMenuPolicy(Qt::NoContextMenu);
 
-    connect(d->m_lineEdit, &FancyLineEdit::customContextMenuRequested, this, &PathChooser::contextMenuRequested);
+    connect(this,
+            &FancyLineEdit::customContextMenuRequested,
+            this,
+            &PathChooser::contextMenuRequested);
     connect(d->m_lineEdit, &FancyLineEdit::validReturnPressed, this, &PathChooser::returnPressed);
     connect(d->m_lineEdit, &QLineEdit::textChanged, this,
             [this] { emit rawPathChanged(rawPath()); });
@@ -268,6 +274,7 @@ void PathChooser::insertButton(int index, const QString &text, QObject *context,
     connect(button, &QAbstractButton::clicked, context, callback);
     d->m_hLayout->insertWidget(index + 1/*line edit*/, button);
     d->m_buttons.insert(index, button);
+    updateReadOnlyStateOfSubwidgets();
 }
 
 QString PathChooser::browseButtonLabel()
@@ -295,9 +302,9 @@ FilePath PathChooser::baseDirectory() const
 
 void PathChooser::setEnvironment(const Environment &env)
 {
-    QString oldExpand = path();
+    QString oldExpand = filePath().toString();
     d->m_environment = env;
-    if (path() != oldExpand) {
+    if (filePath().toString() != oldExpand) {
         triggerChanged();
         emit rawPathChanged(rawPath());
     }
@@ -308,17 +315,12 @@ QString PathChooser::rawPath() const
     return rawFileName().toString();
 }
 
-QString PathChooser::path() const
-{
-    return fileName().toString();
-}
-
 FilePath PathChooser::rawFileName() const
 {
     return FilePath::fromString(QDir::fromNativeSeparators(d->m_lineEdit->text()));
 }
 
-FilePath PathChooser::fileName() const
+FilePath PathChooser::filePath() const
 {
     return FilePath::fromUserInput(d->expandedPath(rawFileName().toString()));
 }
@@ -342,29 +344,38 @@ void PathChooser::setPath(const QString &path)
     d->m_lineEdit->setTextKeepingActiveCursor(QDir::toNativeSeparators(path));
 }
 
-void PathChooser::setFileName(const FilePath &fn)
+void PathChooser::setFilePath(const FilePath &fn)
 {
     d->m_lineEdit->setTextKeepingActiveCursor(fn.toUserOutput());
 }
 
 bool PathChooser::isReadOnly() const
 {
-    return d->m_lineEdit->isReadOnly();
+    return d->m_isReadOnly;
 }
 
 void PathChooser::setReadOnly(bool b)
 {
-    d->m_lineEdit->setReadOnly(b);
-    const auto buttons = d->m_buttons;
-    for (QAbstractButton *button : buttons)
-        button->setEnabled(!b);
+    d->m_isReadOnly = b;
+    updateReadOnlyStateOfSubwidgets();
+}
+
+bool PathChooser::isFileDialogOnly() const
+{
+    return d->m_isFileDialogOnly;
+}
+
+void PathChooser::setFileDialogOnly(bool b)
+{
+    d->m_isFileDialogOnly = b;
+    updateReadOnlyStateOfSubwidgets();
 }
 
 void PathChooser::slotBrowse()
 {
     emit beforeBrowsing();
 
-    QString predefined = path();
+    QString predefined = filePath().toString();
     QFileInfo fi(predefined);
 
     if (!predefined.isEmpty() && !fi.isDir()) {
@@ -447,14 +458,29 @@ void PathChooser::slotBrowse()
 
 void PathChooser::contextMenuRequested(const QPoint &pos)
 {
-    if (QMenu *menu = d->m_lineEdit->createStandardContextMenu()) {
+    if (!d->m_lineEdit->rect().contains(pos))
+        return;
+    QMenu *menu = d->m_lineEdit->createStandardContextMenu();
+    if (!menu)
+        menu = new QMenu;
+    if (s_aboutToShowContextMenuHandler)
+        s_aboutToShowContextMenuHandler(this, menu);
+    if (!menu->actions().isEmpty()) {
         menu->setAttribute(Qt::WA_DeleteOnClose);
-
-        if (s_aboutToShowContextMenuHandler)
-            s_aboutToShowContextMenuHandler(this, menu);
-
-        menu->popup(d->m_lineEdit->mapToGlobal(pos));
+        menu->popup(mapToGlobal(pos));
+    } else {
+        delete menu;
     }
+}
+
+void PathChooser::updateReadOnlyStateOfSubwidgets()
+{
+    const bool readOnlyLineEdit = d->m_isReadOnly || d->m_isFileDialogOnly;
+    d->m_lineEdit->setEnabled(!readOnlyLineEdit);
+    d->m_lineEdit->setReadOnly(readOnlyLineEdit);
+    setFocusPolicy(d->m_lineEdit->focusPolicy());
+    for (QAbstractButton *button : qAsConst(d->m_buttons))
+        button->setEnabled(!d->m_isReadOnly);
 }
 
 bool PathChooser::isValid() const

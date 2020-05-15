@@ -177,8 +177,8 @@ public:
         mainLayout->insertLayout(mainLayout->count() - 2, formLayout);
     }
 
-    QString projectSource() const { return m_projectSource->path(); }
-    FilePath localExecutable() const { return m_localExecutable->fileName(); }
+    QString projectSource() const { return m_projectSource->filePath().toString(); }
+    FilePath localExecutable() const { return m_localExecutable->filePath(); }
 
 private:
     PathChooser *m_projectSource;

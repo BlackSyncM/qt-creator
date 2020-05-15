@@ -38,7 +38,6 @@
 #include <projectexplorer/buildsystem.h>
 #include <projectexplorer/project.h>
 #include <projectexplorer/projectnodes.h>
-#include <projectexplorer/runconfiguration.h>
 #include <projectexplorer/target.h>
 
 #include <qtsupport/qtkitinformation.h>
@@ -257,7 +256,7 @@ QWidget *AndroidBuildApkWidget::createCreateTemplatesGroup()
 
     auto createAndroidTemplatesButton = new QPushButton(tr("Create Templates"));
     connect(createAndroidTemplatesButton, &QAbstractButton::clicked, this, [this] {
-        CreateAndroidManifestWizard wizard(m_step->buildConfiguration()->buildSystem());
+        CreateAndroidManifestWizard wizard(m_step->buildSystem());
         wizard.exec();
     });
 
@@ -273,7 +272,7 @@ QWidget *AndroidBuildApkWidget::createAdditionalLibrariesGroup()
     auto group = new QGroupBox(tr("Additional Libraries"));
     group->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 
-    auto libsModel = new AndroidExtraLibraryListModel(m_step->target(), this);
+    auto libsModel = new AndroidExtraLibraryListModel(m_step->buildSystem(), this);
     connect(libsModel, &AndroidExtraLibraryListModel::enabledChanged, this,
             [this, group](const bool enabled) {
                 group->setEnabled(enabled);
@@ -329,8 +328,8 @@ QWidget *AndroidBuildApkWidget::createAdditionalLibrariesGroup()
     });
 
     Target *target = m_step->target();
-    RunConfiguration *rc = target->activeRunConfiguration();
-    const ProjectNode *node = rc ? target->project()->findNodeForBuildKey(rc->buildKey()) : nullptr;
+    const QString buildKey = target->activeBuildKey();
+    const ProjectNode *node = target->project()->findNodeForBuildKey(buildKey);
     group->setEnabled(node && !node->parseInProgress());
 
     return group;
@@ -406,7 +405,7 @@ void AndroidBuildApkWidget::setCertificates()
 
 void AndroidBuildApkWidget::updateSigningWarning()
 {
-    bool nonRelease = m_step->buildConfiguration()->buildType() != BuildConfiguration::Release;
+    bool nonRelease = m_step->buildType() != BuildConfiguration::Release;
     bool visible = m_step->signPackage() && nonRelease;
     m_signingDebugWarningLabel->setVisible(visible);
 }

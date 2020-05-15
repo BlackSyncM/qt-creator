@@ -108,15 +108,13 @@ ChooseProFilePage::ChooseProFilePage(CreateAndroidManifestWizard *wizard)
     fl->addRow(label);
 
     BuildSystem *buildSystem = wizard->buildSystem();
-    QString currentBuildTarget;
-    if (RunConfiguration *rc = buildSystem->target()->activeRunConfiguration())
-        currentBuildTarget = rc->buildKey();
+    QString currentBuildKey = buildSystem->target()->activeBuildKey();
 
     m_comboBox = new QComboBox(this);
     for (const BuildTargetInfo &bti : buildSystem->applicationTargets()) {
         const QString displayName = bti.buildKey;
         m_comboBox->addItem(displayName, QVariant(bti.buildKey)); // TODO something more?
-        if (bti.buildKey == currentBuildTarget)
+        if (bti.buildKey == currentBuildKey)
             m_comboBox->setCurrentIndex(m_comboBox->count() - 1);
     }
 
@@ -198,7 +196,7 @@ void ChooseDirectoryPage::checkPackageSourceDir()
     const BuildTargetInfo bti = m_wizard->buildSystem()->buildTarget(buildKey);
     const QString projectDir = bti.projectFilePath.toFileInfo().absolutePath();
 
-    const QString newDir = m_androidPackageSourceDir->path();
+    const QString newDir = m_androidPackageSourceDir->filePath().toString();
     bool isComplete = QFileInfo(projectDir) != QFileInfo(newDir);
 
     m_sourceDirectoryWarning->setVisible(!isComplete);
@@ -240,7 +238,7 @@ void ChooseDirectoryPage::initializePage()
     }
 
 
-    m_wizard->setDirectory(m_androidPackageSourceDir->path());
+    m_wizard->setDirectory(m_androidPackageSourceDir->filePath().toString());
 }
 
 //
@@ -389,18 +387,21 @@ void CreateAndroidManifestWizard::createAndroidTemplateFiles()
     if (node) {
         node->addFiles(addedFiles);
         androidPackageDir = node->data(Android::Constants::AndroidPackageSourceDir).toString();
-    }
 
-    if (androidPackageDir.isEmpty()) {
-        // and now time for some magic
-        const BuildTargetInfo bti = target->buildTarget(m_buildKey);
-        const QString value = "$$PWD/" + bti.projectFilePath.toFileInfo().absoluteDir().relativeFilePath(m_directory);
-        bool result = node->setData(Android::Constants::AndroidPackageSourceDir, value);
+        if (androidPackageDir.isEmpty()) {
+            // and now time for some magic
+            const BuildTargetInfo bti = target->buildTarget(m_buildKey);
+            const QString value = "$$PWD/"
+                                  + bti.projectFilePath.toFileInfo().absoluteDir().relativeFilePath(
+                                      m_directory);
+            bool result = node->setData(Android::Constants::AndroidPackageSourceDir, value);
 
-        if (!result) {
-            QMessageBox::warning(this, tr("Project File not Updated"),
-                                 tr("Could not update the project file %1.")
-                                 .arg(bti.projectFilePath.toUserOutput()));
+            if (!result) {
+                QMessageBox::warning(this,
+                                     tr("Project File not Updated"),
+                                     tr("Could not update the project file %1.")
+                                         .arg(bti.projectFilePath.toUserOutput()));
+            }
         }
     }
     Core::EditorManager::openEditor(m_directory + QLatin1String("/AndroidManifest.xml"));

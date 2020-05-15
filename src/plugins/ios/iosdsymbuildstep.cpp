@@ -67,12 +67,10 @@ IosDsymBuildStep::IosDsymBuildStep(BuildStepList *parent, Id id) :
 
 bool IosDsymBuildStep::init()
 {
-    BuildConfiguration *bc = buildConfiguration();
-
     ProcessParameters *pp = processParameters();
-    pp->setMacroExpander(bc->macroExpander());
-    pp->setWorkingDirectory(bc->buildDirectory());
-    Utils::Environment env = bc->environment();
+    pp->setMacroExpander(macroExpander());
+    pp->setWorkingDirectory(buildDirectory());
+    Utils::Environment env = buildEnvironment();
     Utils::Environment::setupEnglishOutput(&env);
     pp->setEnvironment(env);
     pp->setCommandLine({command(), arguments()});
@@ -81,10 +79,6 @@ bool IosDsymBuildStep::init()
     // we should stop the clean queue
     // That is mostly so that rebuild works on an already clean project
     setIgnoreReturnValue(m_clean);
-
-    setOutputParser(target()->kit()->createOutputParser());
-    if (outputParser())
-        outputParser()->setWorkingDirectory(pp->effectiveWorkingDirectory());
 
     return AbstractProcessStep::init();
 }
@@ -192,6 +186,13 @@ void IosDsymBuildStep::doRun()
     AbstractProcessStep::doRun();
 }
 
+void IosDsymBuildStep::setupOutputFormatter(OutputFormatter *formatter)
+{
+    formatter->setLineParsers(target()->kit()->createOutputParsers());
+    formatter->addSearchDir(processParameters()->effectiveWorkingDirectory());
+    AbstractProcessStep::setupOutputFormatter(formatter);
+}
+
 BuildStepConfigWidget *IosDsymBuildStep::createConfigWidget()
 {
     return new IosDsymBuildStepConfigWidget(this);
@@ -255,12 +256,10 @@ IosDsymBuildStepConfigWidget::~IosDsymBuildStepConfigWidget()
 
 void IosDsymBuildStepConfigWidget::updateDetails()
 {
-    BuildConfiguration *bc = m_buildStep->buildConfiguration();
-
     ProcessParameters param;
-    param.setMacroExpander(bc->macroExpander());
-    param.setWorkingDirectory(bc->buildDirectory());
-    param.setEnvironment(bc->environment());
+    param.setMacroExpander(m_buildStep->macroExpander());
+    param.setWorkingDirectory(m_buildStep->buildDirectory());
+    param.setEnvironment(m_buildStep->buildEnvironment());
     param.setCommandLine({m_buildStep->command(), m_buildStep->arguments()});
 
     setSummaryText(param.summary(displayName()));

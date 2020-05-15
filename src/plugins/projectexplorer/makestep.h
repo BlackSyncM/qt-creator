@@ -54,6 +54,7 @@ public:
     void setAvailableBuildTargets(const QStringList &buildTargets);
 
     bool init() override;
+    void setupOutputFormatter(Utils::OutputFormatter *formatter) override;
     ProjectExplorer::BuildStepConfigWidget *createConfigWidget() override;
     bool buildsTarget(const QString &target) const;
     void setBuildTarget(const QString &target, bool on);
@@ -87,7 +88,7 @@ public:
     bool enabledForSubDirs() const { return m_enabledForSubDirs; }
     void setEnabledForSubDirs(bool enabled) { m_enabledForSubDirs = enabled; }
 
-    Utils::Environment environment(BuildConfiguration *bc) const;
+    Utils::Environment makeEnvironment() const;
 
 protected:
     bool fromMap(const QVariantMap &map) override;

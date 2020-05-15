@@ -107,8 +107,10 @@ public:
     Utils::MacroExpanderProvider m_expanderProvider;
     QPixmap m_labelPixmap;
     Utils::FilePath m_baseFileName;
+    BaseStringAspect::ValueAcceptor m_valueAcceptor;
     bool m_readOnly = false;
     bool m_showToolTipOnLabel = false;
+    bool m_fileDialogOnly = false;
 
     template<class Widget> void updateWidgetFromCheckStatus(Widget *w)
     {
@@ -146,6 +148,11 @@ BaseStringAspect::BaseStringAspect()
 
 BaseStringAspect::~BaseStringAspect() = default;
 
+void BaseStringAspect::setValueAcceptor(BaseStringAspect::ValueAcceptor &&acceptor)
+{
+    d->m_valueAcceptor = std::move(acceptor);
+}
+
 QString BaseStringAspect::value() const
 {
     return d->m_value;
@@ -154,10 +161,22 @@ QString BaseStringAspect::value() const
 void BaseStringAspect::setValue(const QString &value)
 {
     const bool isSame = value == d->m_value;
-    d->m_value = value;
+    if (isSame)
+        return;
+
+    QString processedValue = value;
+    if (d->m_valueAcceptor) {
+        const Utils::optional<QString> tmp = d->m_valueAcceptor(d->m_value, value);
+        if (!tmp) {
+            update(); // Make sure the original value is retained in the UI
+            return;
+        }
+        processedValue = tmp.value();
+    }
+
+    d->m_value = processedValue;
     update();
-    if (!isSame)
-        emit changed();
+    emit changed();
 }
 
 void BaseStringAspect::fromMap(const QVariantMap &map)
@@ -257,6 +276,13 @@ void BaseStringAspect::setExpectedKind(const PathChooser::Kind expectedKind)
         d->m_pathChooserDisplay->setExpectedKind(expectedKind);
 }
 
+void BaseStringAspect::setFileDialogOnly(bool requireFileDialog)
+{
+    d->m_fileDialogOnly = requireFileDialog;
+    if (d->m_pathChooserDisplay)
+        d->m_pathChooserDisplay->setFileDialogOnly(requireFileDialog);
+}
+
 void BaseStringAspect::setEnvironment(const Environment &env)
 {
     d->m_environment = env;
@@ -285,6 +311,14 @@ void BaseStringAspect::setReadOnly(bool readOnly)
 void BaseStringAspect::setMacroExpanderProvider(const MacroExpanderProvider &expanderProvider)
 {
     d->m_expanderProvider = expanderProvider;
+}
+
+void BaseStringAspect::validateInput()
+{
+    if (d->m_pathChooserDisplay)
+        d->m_pathChooserDisplay->triggerChanged();
+    if (d->m_lineEditDisplay)
+        d->m_lineEditDisplay->validate();
 }
 
 void BaseStringAspect::setUncheckedSemantics(BaseStringAspect::UncheckedSemantics semantics)
@@ -329,6 +363,7 @@ void BaseStringAspect::addToLayout(LayoutBuilder &builder)
         connect(d->m_pathChooserDisplay, &PathChooser::pathChanged,
                 this, &BaseStringAspect::setValue);
         builder.addItem(d->m_pathChooserDisplay.data());
+        d->m_pathChooserDisplay->setFileDialogOnly(d->m_fileDialogOnly);
         break;
     case LineEditDisplay:
         d->m_lineEditDisplay = new FancyLineEdit;
@@ -362,6 +397,8 @@ void BaseStringAspect::addToLayout(LayoutBuilder &builder)
         break;
     }
 
+    validateInput();
+
     if (d->m_checker && d->m_checkBoxPlacement == CheckBoxPlacement::Right)
         d->m_checker->addToLayout(builder);
 
@@ -374,7 +411,7 @@ void BaseStringAspect::update()
                                                        : d->m_value;
 
     if (d->m_pathChooserDisplay) {
-        d->m_pathChooserDisplay->setFileName(FilePath::fromString(displayedString));
+        d->m_pathChooserDisplay->setFilePath(FilePath::fromString(displayedString));
         d->updateWidgetFromCheckStatus(d->m_pathChooserDisplay.data());
     }
 
@@ -398,6 +435,8 @@ void BaseStringAspect::update()
         if (!d->m_labelPixmap.isNull())
             d->m_label->setPixmap(d->m_labelPixmap);
     }
+
+    validateInput();
 }
 
 void BaseStringAspect::makeCheckable(CheckBoxPlacement checkBoxPlacement,

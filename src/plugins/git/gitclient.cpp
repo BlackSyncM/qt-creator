@@ -84,12 +84,14 @@
 #include <QTextCodec>
 
 const char GIT_DIRECTORY[] = ".git";
-const char graphLogFormatC[] = "%h %d %an %s %ci";
 const char HEAD[] = "HEAD";
 const char CHERRY_PICK_HEAD[] = "CHERRY_PICK_HEAD";
 const char BRANCHES_PREFIX[] = "Branches: ";
 const char stashNamePrefix[] = "stash@{";
 const char noColorOption[] = "--no-color";
+const char colorOption[] = "--color=always";
+const char patchOption[] = "--patch";
+const char graphOption[] = "--graph";
 const char decorateOption[] = "--decorate";
 const char showFormatC[] =
         "--pretty=format:commit %H%d%n"
@@ -265,37 +267,68 @@ void DescriptionWidgetDecorator::removeWatch(TextEditor::TextEditorWidget *widge
 
 ///////////////////////////////
 
-class GitDiffEditorController : public VcsBaseDiffEditorController
+class GitBaseDiffEditorController : public VcsBaseDiffEditorController
 {
     Q_OBJECT
 
-public:
-    explicit GitDiffEditorController(IDocument *document);
+protected:
+    explicit GitBaseDiffEditorController(IDocument *document,
+                                         const QString &leftCommit,
+                                         const QString &rightCommit);
 
 protected:
     void runCommand(const QList<QStringList> &args, QTextCodec *codec = nullptr);
 
     QStringList addConfigurationArguments(const QStringList &args) const;
-    QStringList addHeadWhenCommandInProgress() const;
+    QStringList baseArguments() const;
 
 private:
     void updateBranchList();
 
     DescriptionWidgetWatcher m_watcher;
     DescriptionWidgetDecorator m_decorator;
+    QString m_leftCommit;
+    QString m_rightCommit;
 };
 
-GitDiffEditorController::GitDiffEditorController(IDocument *document) :
+class GitDiffEditorController : public GitBaseDiffEditorController
+{
+public:
+    explicit GitDiffEditorController(IDocument *document,
+                                     const QString &leftCommit,
+                                     const QString &rightCommit,
+                                     const QStringList &extraArgs)
+        : GitBaseDiffEditorController(document, leftCommit, rightCommit)
+    {
+        setReloader([this, extraArgs] {
+            runCommand({addConfigurationArguments(baseArguments() << extraArgs)});
+        });
+    }
+};
+
+GitBaseDiffEditorController::GitBaseDiffEditorController(IDocument *document,
+                                                         const QString &leftCommit,
+                                                         const QString &rightCommit) :
     VcsBaseDiffEditorController(document),
     m_watcher(this),
-    m_decorator(&m_watcher)
+    m_decorator(&m_watcher),
+    m_leftCommit(leftCommit),
+    m_rightCommit(rightCommit)
 {
     connect(&m_decorator, &DescriptionWidgetDecorator::branchListRequested,
-            this, &GitDiffEditorController::updateBranchList);
+            this, &GitBaseDiffEditorController::updateBranchList);
     setDisplayName("Git Diff");
+    if (rightCommit.isEmpty()) {
+        // This is workaround for lack of support for merge commits and resolving conflicts,
+        // we compare the current state of working tree to the HEAD of current branch
+        // instead of showing unsupported combined diff format.
+        GitClient::CommandInProgress commandInProgress = m_instance->checkCommandInProgress(workingDirectory());
+        if (commandInProgress != GitClient::NoCommand)
+            m_rightCommit = HEAD;
+    }
 }
 
-void GitDiffEditorController::updateBranchList()
+void GitBaseDiffEditorController::updateBranchList()
 {
     const QString revision = description().mid(7, 12);
     if (revision.isEmpty())
@@ -347,12 +380,12 @@ void GitDiffEditorController::updateBranchList()
 
 ///////////////////////////////
 
-void GitDiffEditorController::runCommand(const QList<QStringList> &args, QTextCodec *codec)
+void GitBaseDiffEditorController::runCommand(const QList<QStringList> &args, QTextCodec *codec)
 {
     VcsBaseDiffEditorController::runCommand(args, diffExecutionFlags(), codec);
 }
 
-QStringList GitDiffEditorController::addConfigurationArguments(const QStringList &args) const
+QStringList GitBaseDiffEditorController::addConfigurationArguments(const QStringList &args) const
 {
     QTC_ASSERT(!args.isEmpty(), return args);
 
@@ -372,66 +405,32 @@ QStringList GitDiffEditorController::addConfigurationArguments(const QStringList
     return realArgs;
 }
 
-QStringList GitDiffEditorController::addHeadWhenCommandInProgress() const
+QStringList GitBaseDiffEditorController::baseArguments() const
 {
-    // This is workaround for lack of support for merge commits and resolving conflicts,
-    // we compare the current state of working tree to the HEAD of current branch
-    // instead of showing unsupported combined diff format.
-    GitClient::CommandInProgress commandInProgress = m_instance->checkCommandInProgress(workingDirectory());
-    if (commandInProgress != GitClient::NoCommand)
-        return {HEAD};
-    return QStringList();
+    QStringList res = {"diff"};
+    if (!m_leftCommit.isEmpty())
+        res << m_leftCommit;
+    if (!m_rightCommit.isEmpty())
+        res << m_rightCommit;
+    return res;
 }
 
-class RepositoryDiffController : public GitDiffEditorController
-{
-public:
-    explicit RepositoryDiffController(IDocument *document) :
-        GitDiffEditorController(document)
-    {
-        setReloader([this] {
-            QStringList args = {"diff"};
-            args.append(addHeadWhenCommandInProgress());
-            runCommand({addConfigurationArguments(args)});
-        });
-    }
-};
-
-class FileDiffController : public GitDiffEditorController
-{
-public:
-    FileDiffController(IDocument *document, const QString &fileName) :
-        GitDiffEditorController(document)
-    {
-        setReloader([this, fileName] {
-            QStringList args = {"diff"};
-            args.append(addHeadWhenCommandInProgress());
-            args << "--" << fileName;
-            runCommand({addConfigurationArguments(args)});
-        });
-    }
-};
-
-class FileListDiffController : public GitDiffEditorController
+class FileListDiffController : public GitBaseDiffEditorController
 {
 public:
     FileListDiffController(IDocument *document,
                            const QStringList &stagedFiles, const QStringList &unstagedFiles) :
-        GitDiffEditorController(document)
+        GitBaseDiffEditorController(document, {}, {})
     {
         setReloader([this, stagedFiles, unstagedFiles] {
             QList<QStringList> argLists;
             if (!stagedFiles.isEmpty()) {
-                QStringList stagedArgs = {"diff", "--cached", "--"};
-                stagedArgs << stagedFiles;
+                QStringList stagedArgs = QStringList({"diff", "--cached", "--"}) << stagedFiles;
                 argLists << addConfigurationArguments(stagedArgs);
             }
 
-            if (!unstagedFiles.isEmpty()) {
-                QStringList unstagedArgs = {"diff"};
-                unstagedArgs << addHeadWhenCommandInProgress() << "--" << unstagedFiles;
-                argLists << addConfigurationArguments(unstagedArgs);
-            }
+            if (!unstagedFiles.isEmpty())
+                argLists << addConfigurationArguments(baseArguments() << "--" << unstagedFiles);
 
             if (!argLists.isEmpty())
                 runCommand(argLists);
@@ -439,40 +438,12 @@ public:
     }
 };
 
-class ProjectDiffController : public GitDiffEditorController
-{
-public:
-    ProjectDiffController(IDocument *document, const QStringList &projectPaths) :
-        GitDiffEditorController(document)
-    {
-        setReloader([this, projectPaths] {
-            QStringList args = {"diff"};
-            args << addHeadWhenCommandInProgress() << "--" << projectPaths;
-            runCommand({addConfigurationArguments(args)});
-        });
-    }
-};
-
-class BranchDiffController : public GitDiffEditorController
-{
-public:
-    BranchDiffController(IDocument *document, const QString &branch) :
-        GitDiffEditorController(document)
-    {
-        setReloader([this, branch] {
-            QStringList args = {"diff"};
-            args << addHeadWhenCommandInProgress() << branch;
-            runCommand({addConfigurationArguments(args)});
-        });
-    }
-};
-
-class ShowController : public GitDiffEditorController
+class ShowController : public GitBaseDiffEditorController
 {
     Q_OBJECT
 public:
     ShowController(IDocument *document, const QString &id) :
-        GitDiffEditorController(document),
+        GitBaseDiffEditorController(document, {}, {}),
         m_id(id),
         m_state(Idle)
     {
@@ -505,7 +476,7 @@ void ShowController::processCommandOutput(const QString &output)
         runCommand(QList<QStringList>() << addConfigurationArguments(args));
     } else if (m_state == GettingDiff) {
         m_state = Idle;
-        GitDiffEditorController::processCommandOutput(output);
+        GitBaseDiffEditorController::processCommandOutput(output);
     }
 }
 
@@ -571,7 +542,7 @@ public:
         BaseGitDiffArgumentsWidget(settings, editor->toolBar())
     {
         QToolBar *toolBar = editor->toolBar();
-        QAction *diffButton = addToggleButton("--patch", tr("Diff"),
+        QAction *diffButton = addToggleButton(patchOption, tr("Diff"),
                                               tr("Show difference."));
         mapSetting(diffButton, settings.boolPointer(GitSettings::logDiffKey));
         connect(diffButton, &QAction::toggled, m_patienceButton, &QAction::setVisible);
@@ -599,13 +570,13 @@ public:
                                 tr("First Parent"),
                                 tr("Follow only the first parent on merge commits."));
         mapSetting(firstParentButton, settings.boolPointer(GitSettings::firstParentKey));
-        const QStringList graphArguments = {
-            "--graph", "--oneline", "--topo-order",
-            QLatin1String("--pretty=format:") + graphLogFormatC
-        };
-        QAction *graphButton = addToggleButton(graphArguments, tr("Graph"),
+        QAction *graphButton = addToggleButton(graphArguments(), tr("Graph"),
                                                tr("Show textual graph log."));
         mapSetting(graphButton, settings.boolPointer(GitSettings::graphLogKey));
+
+        QAction *colorButton = addToggleButton(QStringList{colorOption},
+                                        tr("Color"), tr("Use colors in log."));
+        mapSetting(colorButton, settings.boolPointer(GitSettings::colorLogKey));
 
         if (fileRelated) {
             QAction *followButton = addToggleButton(
@@ -615,6 +586,35 @@ public:
         }
 
         addReloadButton();
+    }
+
+    QStringList graphArguments() const
+    {
+        auto colorName = [](Theme::Color color) { return creatorTheme()->color(color).name(); };
+        const QString authorName = colorName(Theme::Git_AuthorName_TextColor);
+        const QString commitDate = colorName(Theme::Git_CommitDate_TextColor);
+        const QString commitHash = colorName(Theme::Git_CommitHash_TextColor);
+        const QString commitSubject = colorName(Theme::Git_CommitSubject_TextColor);
+        const QString decoration = colorName(Theme::Git_Decoration_TextColor);
+
+        const QString formatArg = QStringLiteral(
+                    "--pretty=format:"
+                    "%C(%1)%h%Creset "
+                    "%C(%2)%d%Creset "
+                    "%C(%3)%an%Creset "
+                    "%C(%4)%s%Creset "
+                    "%C(%5)%ci%Creset"
+                    ).arg(commitHash, decoration, authorName, commitSubject, commitDate);
+
+        QStringList graphArgs = {graphOption, "--oneline", "--topo-order"};
+
+        const unsigned gitVersion = GitClient::instance()->gitVersion();
+        if (gitVersion >= 0x020300U)
+            graphArgs << formatArg;
+        else
+            graphArgs << "--pretty=format:%h %d %an %s %ci";
+
+        return graphArgs;
     }
 };
 
@@ -978,17 +978,20 @@ void GitClient::diffProject(const QString &workingDirectory, const QString &proj
     requestReload(documentId,
                   workingDirectory, tr("Git Diff Project"), workingDirectory,
                   [projectDirectory](IDocument *doc){
-                      return new ProjectDiffController(doc, {projectDirectory});
+                      return new GitDiffEditorController(doc, {}, {}, {"--", projectDirectory});
                   });
 }
 
-void GitClient::diffRepository(const QString &workingDirectory)
+void GitClient::diffRepository(const QString &workingDirectory,
+                               const QString &leftCommit,
+                               const QString &rightCommit) const
 {
     const QString documentId = QLatin1String(Constants::GIT_PLUGIN)
             + QLatin1String(".DiffRepository.") + workingDirectory;
-    requestReload(documentId,
-                  workingDirectory, tr("Git Diff Repository"), workingDirectory,
-                  [](IDocument *doc) { return new RepositoryDiffController(doc); });
+    requestReload(documentId, workingDirectory, tr("Git Diff Repository"), workingDirectory,
+                  [&leftCommit, &rightCommit](IDocument *doc) {
+        return new GitDiffEditorController(doc, leftCommit, rightCommit, {});
+    });
 }
 
 void GitClient::diffFile(const QString &workingDirectory, const QString &fileName) const
@@ -998,7 +1001,9 @@ void GitClient::diffFile(const QString &workingDirectory, const QString &fileNam
     const QString documentId = QLatin1String(Constants::GIT_PLUGIN)
             + QLatin1String(".DifFile.") + sourceFile;
     requestReload(documentId, sourceFile, title, workingDirectory,
-                  [fileName](IDocument *doc) { return new FileDiffController(doc, fileName); });
+                  [&fileName](IDocument *doc) {
+        return new GitDiffEditorController(doc, {}, {}, {"--", fileName});
+    });
 }
 
 void GitClient::diffBranch(const QString &workingDirectory, const QString &branchName) const
@@ -1007,7 +1012,9 @@ void GitClient::diffBranch(const QString &workingDirectory, const QString &branc
     const QString documentId = QLatin1String(Constants::GIT_PLUGIN)
             + QLatin1String(".DiffBranch.") + branchName;
     requestReload(documentId, workingDirectory, title, workingDirectory,
-                  [branchName](IDocument *doc) { return new BranchDiffController(doc, branchName); });
+                  [branchName](IDocument *doc) {
+        return new GitDiffEditorController(doc, branchName, {}, {});
+    });
 }
 
 void GitClient::merge(const QString &workingDirectory,
@@ -1018,12 +1025,36 @@ void GitClient::merge(const QString &workingDirectory,
         delete mergeTool;
 }
 
-void GitClient::status(const QString &workingDirectory)
+void GitClient::status(const QString &workingDirectory) const
 {
     VcsOutputWindow::setRepository(workingDirectory);
     VcsCommand *command = vcsExec(workingDirectory, {"status", "-u"}, nullptr, true);
     connect(command, &VcsCommand::finished, VcsOutputWindow::instance(), &VcsOutputWindow::clearRepository,
             Qt::QueuedConnection);
+}
+
+static QStringList normalLogArguments()
+{
+    const unsigned gitVersion = GitClient::instance()->gitVersion();
+    if (gitVersion < 0x020300U)
+        return {};
+
+    auto colorName = [](Theme::Color color) { return creatorTheme()->color(color).name(); };
+    const QString authorName = colorName(Theme::Git_AuthorName_TextColor);
+    const QString commitDate = colorName(Theme::Git_CommitDate_TextColor);
+    const QString commitHash = colorName(Theme::Git_CommitHash_TextColor);
+    const QString commitSubject = colorName(Theme::Git_CommitSubject_TextColor);
+    const QString decoration = colorName(Theme::Git_Decoration_TextColor);
+
+    const QString logArgs = QStringLiteral(
+                "--pretty=format:"
+                "Commit: %C(%1)%H%Creset %C(%2)%d%Creset%n"
+                "Author: %C(%3)%an <%ae>%Creset%n"
+                "Date:   %C(%4)%cD%Creset%n%n"
+                "%C(%5)%s%Creset%n%n%b%n"
+                ).arg(commitHash, decoration, authorName, commitDate, commitSubject);
+
+    return {logArgs};
 }
 
 void GitClient::log(const QString &workingDirectory, const QString &fileName,
@@ -1055,12 +1086,17 @@ void GitClient::log(const QString &workingDirectory, const QString &fileName,
     editor->setFileLogAnnotateEnabled(enableAnnotationContextMenu);
     editor->setWorkingDirectory(workingDir);
 
-    QStringList arguments = {"log", noColorOption, decorateOption};
+    QStringList arguments = {"log", decorateOption};
     int logCount = settings().intValue(GitSettings::logCountKey);
     if (logCount > 0)
         arguments << "-n" << QString::number(logCount);
 
     arguments << argWidget->arguments();
+    if (arguments.contains(patchOption))
+        arguments.removeAll(colorOption);
+    if (!arguments.contains(graphOption) && !arguments.contains(patchOption))
+        arguments << normalLogArguments();
+
     const QString grepValue = editor->grepValue();
     if (!grepValue.isEmpty())
         arguments << "--grep=" + grepValue;
@@ -1285,7 +1321,9 @@ QStringList GitClient::setupCheckoutArguments(const QString &workingDirectory,
         }
     }
 
+    const QString suggestedName = suggestedLocalBranchName(localBranches, remoteBranch);
     BranchAddDialog branchAddDialog(localBranches, BranchAddDialog::Type::AddBranch, ICore::dialogParent());
+    branchAddDialog.setBranchName(suggestedName);
     branchAddDialog.setTrackedBranchName(remoteBranch, true);
 
     if (branchAddDialog.exec() != QDialog::Accepted)
@@ -2431,7 +2469,7 @@ QStringList GitClient::synchronousRepositoryBranches(const QString &repositoryUR
     return branches;
 }
 
-void GitClient::launchGitK(const QString &workingDirectory, const QString &fileName)
+void GitClient::launchGitK(const QString &workingDirectory, const QString &fileName) const
 {
     const QFileInfo binaryInfo = vcsBinary().toFileInfo();
     QDir foundBinDir(binaryInfo.dir());
@@ -2467,7 +2505,7 @@ void GitClient::launchGitK(const QString &workingDirectory, const QString &fileN
     VcsOutputWindow::appendError(msgCannotLaunch("gitk"));
 }
 
-void GitClient::launchRepositoryBrowser(const QString &workingDirectory)
+void GitClient::launchRepositoryBrowser(const QString &workingDirectory) const
 {
     const QString repBrowserBinary = settings().stringValue(GitSettings::repositoryBrowserCmd);
     if (!repBrowserBinary.isEmpty())
@@ -2477,7 +2515,7 @@ void GitClient::launchRepositoryBrowser(const QString &workingDirectory)
 bool GitClient::tryLauchingGitK(const QProcessEnvironment &env,
                                 const QString &workingDirectory,
                                 const QString &fileName,
-                                const QString &gitBinDirectory)
+                                const QString &gitBinDirectory) const
 {
     QString binary = gitBinDirectory + "/gitk";
     QStringList arguments;
@@ -2499,7 +2537,7 @@ bool GitClient::tryLauchingGitK(const QProcessEnvironment &env,
     // the child), but that does not have an environment parameter.
     bool success = false;
     if (!settings().stringValue(GitSettings::pathKey).isEmpty()) {
-        auto process = new QProcess(this);
+        auto process = new QProcess;
         process->setWorkingDirectory(workingDirectory);
         process->setProcessEnvironment(env);
         process->start(binary, arguments);
@@ -2557,6 +2595,24 @@ FilePath GitClient::gitBinDirectory() const
         }
     }
     return FilePath::fromString(path);
+}
+
+bool GitClient::launchGitBash(const QString &workingDirectory)
+{
+    bool success = true;
+    const QString git = vcsBinary().toString();
+
+    if (git.isEmpty()) {
+        success = false;
+    } else {
+        const QString gitBash = QFileInfo(git).absolutePath() + "/../git-bash.exe";
+        success = QProcess::startDetached(gitBash, {}, workingDirectory);
+    }
+
+    if (!success)
+        VcsOutputWindow::appendError(msgCannotLaunch("git-bash"));
+
+    return success;
 }
 
 FilePath GitClient::vcsBinary() const
@@ -3116,7 +3172,7 @@ void GitClient::addFuture(const QFuture<void> &future)
 }
 
 // Subversion: git svn
-void GitClient::synchronousSubversionFetch(const QString &workingDirectory)
+void GitClient::synchronousSubversionFetch(const QString &workingDirectory) const
 {
     // Disable UNIX terminals to suppress SSH prompting.
     const unsigned flags = VcsCommand::SshPasswordPrompt
@@ -3125,7 +3181,7 @@ void GitClient::synchronousSubversionFetch(const QString &workingDirectory)
     vcsSynchronousExec(workingDirectory, {"svn", "fetch"}, flags);
 }
 
-void GitClient::subversionLog(const QString &workingDirectory)
+void GitClient::subversionLog(const QString &workingDirectory) const
 {
     QStringList arguments = {"svn", "log"};
     int logCount = settings().intValue(GitSettings::logCountKey);
@@ -3142,7 +3198,7 @@ void GitClient::subversionLog(const QString &workingDirectory)
     vcsExec(workingDirectory, arguments, editor);
 }
 
-void GitClient::subversionDeltaCommit(const QString &workingDirectory)
+void GitClient::subversionDeltaCommit(const QString &workingDirectory) const
 {
     vcsExec(workingDirectory, {"svn", "dcommit"}, nullptr, true,
             VcsCommand::ShowSuccessMessage);
@@ -3596,6 +3652,20 @@ GitRemote::GitRemote(const QString &location) : Core::IVersionControl::RepoUrl(l
         isValid = QDir(path).exists() || QDir(path + ".git").exists();
 }
 
+QString GitClient::suggestedLocalBranchName(const QStringList localNames,
+                                            const QString trackedBranch)
+{
+    const QString suggestedNameBase = trackedBranch.mid(trackedBranch.lastIndexOf('/') + 1);
+    QString suggestedName = suggestedNameBase;
+    int i = 2;
+    while (localNames.contains(suggestedName)) {
+        suggestedName = suggestedNameBase + QString::number(i);
+        ++i;
+    }
+
+    return suggestedName;
+}
+
 void GitClient::addChangeActions(QMenu *menu, const QString &workingDir, const QString &change)
 {
     QTC_ASSERT(!change.isEmpty(), return);
@@ -3646,6 +3716,21 @@ void GitClient::addChangeActions(QMenu *menu, const QString &workingDir, const Q
     resetMenu->addAction(tr("&Mixed"), std::bind(resetChange, "mixed"));
     resetMenu->addAction(tr("&Soft"), std::bind(resetChange, "soft"));
     menu->addMenu(resetMenu);
+
+    menu->addAction(tr("Di&ff Against %1").arg(change),
+                    [workingDir, change] {
+        m_instance->diffRepository(workingDir, change, {});
+    });
+    if (!m_instance->m_diffCommit.isEmpty()) {
+        menu->addAction(tr("Diff &Against Saved %1").arg(m_instance->m_diffCommit),
+                        [workingDir, change] {
+            m_instance->diffRepository(workingDir, m_instance->m_diffCommit, change);
+            m_instance->m_diffCommit.clear();
+        });
+    }
+    menu->addAction(tr("&Save for Diff"), [change] {
+        m_instance->m_diffCommit = change;
+    });
 }
 
 } // namespace Internal

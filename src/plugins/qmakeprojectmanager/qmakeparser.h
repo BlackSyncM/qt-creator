@@ -33,15 +33,16 @@
 
 namespace QmakeProjectManager {
 
-class QMAKEPROJECTMANAGER_EXPORT QMakeParser : public ProjectExplorer::IOutputParser
+class QMAKEPROJECTMANAGER_EXPORT QMakeParser : public ProjectExplorer::OutputTaskParser
 {
     Q_OBJECT
 
 public:
     QMakeParser();
-    void stdError(const QString &line) override;
 
 private:
+    Result handleLine(const QString &line, Utils::OutputFormat type) override;
+
     QRegExp m_error;
 };
 

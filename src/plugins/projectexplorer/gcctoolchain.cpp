@@ -265,7 +265,7 @@ static Utils::FilePath gccInstallDir(const FilePath &path, const QStringList &en
 GccToolChain::GccToolChain(Core::Id typeId) :
     ToolChain(typeId)
 {
-    setTypeDisplayName(GccToolChainFactory::tr("GCC"));
+    setTypeDisplayName(tr("GCC"));
 }
 
 void GccToolChain::setCompilerCommand(const FilePath &path)
@@ -731,9 +731,9 @@ FilePath GccToolChain::makeCommand(const Environment &environment) const
     return tmp.isEmpty() ? FilePath::fromString("make") : tmp;
 }
 
-IOutputParser *GccToolChain::outputParser() const
+QList<OutputLineParser *> GccToolChain::createOutputParsers() const
 {
-    return new GccParser;
+    return GccParser::gccParserSuite();
 }
 
 void GccToolChain::resetToolChain(const FilePath &path)
@@ -1045,7 +1045,7 @@ static Utils::FilePaths renesasRl78SearchPathsFromRegistry()
 
 GccToolChainFactory::GccToolChainFactory()
 {
-    setDisplayName(tr("GCC"));
+    setDisplayName(GccToolChain::tr("GCC"));
     setSupportedToolChainType(Constants::GCC_TOOLCHAIN_TYPEID);
     setSupportedLanguages({Constants::C_LANGUAGE_ID, Constants::CXX_LANGUAGE_ID});
     setToolchainConstructor([] { return new GccToolChain(Constants::GCC_TOOLCHAIN_TYPEID); });
@@ -1274,7 +1274,7 @@ void GccToolChainConfigWidget::applyImpl()
     auto tc = static_cast<GccToolChain *>(toolChain());
     Q_ASSERT(tc);
     QString displayName = tc->displayName();
-    tc->setCompilerCommand(m_compilerCommand->fileName());
+    tc->setCompilerCommand(m_compilerCommand->filePath());
     if (m_abiWidget) {
         tc->setSupportedAbis(m_abiWidget->supportedAbis());
         tc->setTargetAbi(m_abiWidget->currentAbi());
@@ -1300,12 +1300,12 @@ void GccToolChainConfigWidget::setFromToolchain()
     // subwidgets are not yet connected!
     QSignalBlocker blocker(this);
     auto tc = static_cast<GccToolChain *>(toolChain());
-    m_compilerCommand->setFileName(tc->compilerCommand());
+    m_compilerCommand->setFilePath(tc->compilerCommand());
     m_platformCodeGenFlagsLineEdit->setText(QtcProcess::joinArgs(tc->platformCodeGenFlags()));
     m_platformLinkerFlagsLineEdit->setText(QtcProcess::joinArgs(tc->platformLinkerFlags()));
     if (m_abiWidget) {
         m_abiWidget->setAbis(tc->supportedAbis(), tc->targetAbi());
-        if (!m_isReadOnly && !m_compilerCommand->path().isEmpty())
+        if (!m_isReadOnly && !m_compilerCommand->filePath().toString().isEmpty())
             m_abiWidget->setEnabled(true);
     }
 }
@@ -1314,7 +1314,7 @@ bool GccToolChainConfigWidget::isDirtyImpl() const
 {
     auto tc = static_cast<GccToolChain *>(toolChain());
     Q_ASSERT(tc);
-    return m_compilerCommand->fileName() != tc->compilerCommand()
+    return m_compilerCommand->filePath() != tc->compilerCommand()
            || m_platformCodeGenFlagsLineEdit->text()
                   != QtcProcess::joinArgs(tc->platformCodeGenFlags())
            || m_platformLinkerFlagsLineEdit->text()
@@ -1356,7 +1356,7 @@ void GccToolChainConfigWidget::handleCompilerCommandChange()
     bool haveCompiler = false;
     Abi currentAbi = m_abiWidget->currentAbi();
     bool customAbi = m_abiWidget->isCustomAbi() && m_abiWidget->isEnabled();
-    FilePath path = m_compilerCommand->fileName();
+    FilePath path = m_compilerCommand->filePath();
     Abis abiList;
 
     if (!path.isEmpty()) {
@@ -1472,7 +1472,7 @@ ClangToolChain::ClangToolChain() :
 ClangToolChain::ClangToolChain(Core::Id typeId) :
     GccToolChain(typeId)
 {
-    setTypeDisplayName(ClangToolChainFactory::tr("Clang"));
+    setTypeDisplayName(tr("Clang"));
     syncAutodetectedWithParentToolchains();
 }
 
@@ -1628,9 +1628,9 @@ LanguageExtensions ClangToolChain::defaultLanguageExtensions() const
     return LanguageExtension::Gnu;
 }
 
-IOutputParser *ClangToolChain::outputParser() const
+QList<OutputLineParser *> ClangToolChain::createOutputParsers() const
 {
-    return new ClangParser;
+    return ClangParser::clangParserSuite();
 }
 
 // --------------------------------------------------------------------------
@@ -1639,7 +1639,7 @@ IOutputParser *ClangToolChain::outputParser() const
 
 ClangToolChainFactory::ClangToolChainFactory()
 {
-    setDisplayName(tr("Clang"));
+    setDisplayName(ClangToolChain::tr("Clang"));
     setSupportedToolChainType(Constants::CLANG_TOOLCHAIN_TYPEID);
     setSupportedLanguages({Constants::CXX_LANGUAGE_ID, Constants::C_LANGUAGE_ID});
     setToolchainConstructor([] { return new ClangToolChain; });
@@ -1798,7 +1798,7 @@ void ClangToolChainConfigWidget::makeReadOnlyImpl()
 MingwToolChain::MingwToolChain() :
     GccToolChain(Constants::MINGW_TOOLCHAIN_TYPEID)
 {
-    setTypeDisplayName(MingwToolChainFactory::tr("MinGW"));
+    setTypeDisplayName(MingwToolChain::tr("MinGW"));
 }
 
 QStringList MingwToolChain::suggestedMkspecList() const
@@ -1833,7 +1833,7 @@ FilePath MingwToolChain::makeCommand(const Environment &environment) const
 
 MingwToolChainFactory::MingwToolChainFactory()
 {
-    setDisplayName(tr("MinGW"));
+    setDisplayName(MingwToolChain::tr("MinGW"));
     setSupportedToolChainType(Constants::MINGW_TOOLCHAIN_TYPEID);
     setSupportedLanguages({Constants::CXX_LANGUAGE_ID, Constants::C_LANGUAGE_ID});
     setToolchainConstructor([] { return new MingwToolChain; });
@@ -1873,7 +1873,7 @@ QList<ToolChain *> MingwToolChainFactory::detectForImport(const ToolChainDescrip
 LinuxIccToolChain::LinuxIccToolChain() :
     GccToolChain(Constants::LINUXICC_TOOLCHAIN_TYPEID)
 {
-    setTypeDisplayName(LinuxIccToolChainFactory::tr("ICC"));
+    setTypeDisplayName(LinuxIccToolChain::tr("ICC"));
 }
 
 /**
@@ -1898,9 +1898,9 @@ LanguageExtensions LinuxIccToolChain::languageExtensions(const QStringList &cxxf
     return extensions;
 }
 
-IOutputParser *LinuxIccToolChain::outputParser() const
+QList<OutputLineParser *> LinuxIccToolChain::createOutputParsers() const
 {
-    return new LinuxIccParser;
+    return LinuxIccParser::iccParserSuite();
 }
 
 QStringList LinuxIccToolChain::suggestedMkspecList() const
@@ -1914,7 +1914,7 @@ QStringList LinuxIccToolChain::suggestedMkspecList() const
 
 LinuxIccToolChainFactory::LinuxIccToolChainFactory()
 {
-    setDisplayName(tr("ICC"));
+    setDisplayName(LinuxIccToolChain::tr("ICC"));
     setSupportedToolChainType(Constants::LINUXICC_TOOLCHAIN_TYPEID);
     setSupportedLanguages({Constants::CXX_LANGUAGE_ID, Constants::C_LANGUAGE_ID});
     setToolchainConstructor([] { return new LinuxIccToolChain; });

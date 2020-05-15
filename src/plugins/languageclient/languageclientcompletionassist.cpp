@@ -285,7 +285,7 @@ private:
 
     QPointer<QTextDocument> m_document;
     QPointer<Client> m_client;
-    MessageId m_currentRequest;
+    Utils::optional<MessageId> m_currentRequest;
     int m_pos = -1;
 };
 
@@ -318,9 +318,14 @@ IAssistProposal *LanguageClientCompletionAssistProcessor::perform(const AssistIn
     }
     CompletionRequest completionRequest;
     CompletionParams::CompletionContext context;
-    context.setTriggerKind(interface->reason() == ActivationCharacter
-                           ? CompletionParams::TriggerCharacter
-                           : CompletionParams::Invoked);
+    if (interface->reason() == ActivationCharacter) {
+        context.setTriggerKind(CompletionParams::TriggerCharacter);
+        QChar triggerCharacter = interface->characterAt(interface->position() - 1);
+        if (!triggerCharacter.isNull())
+            context.setTriggerCharacter(triggerCharacter);
+    } else {
+        context.setTriggerKind(CompletionParams::Invoked);
+    }
     auto params = completionRequest.params().value_or(CompletionParams());
     int line;
     int column;
@@ -337,6 +342,7 @@ IAssistProposal *LanguageClientCompletionAssistProcessor::perform(const AssistIn
     });
     completionRequest.setParams(params);
     m_client->sendContent(completionRequest);
+    m_client->addAssistProcessor(this);
     m_currentRequest = completionRequest.id();
     m_document = interface->textDocument();
     qCDebug(LOGLSPCOMPLETION) << QTime::currentTime()
@@ -347,14 +353,15 @@ IAssistProposal *LanguageClientCompletionAssistProcessor::perform(const AssistIn
 
 bool LanguageClientCompletionAssistProcessor::running()
 {
-    return m_currentRequest.isValid();
+    return m_currentRequest.has_value();
 }
 
 void LanguageClientCompletionAssistProcessor::cancel()
 {
     if (running()) {
-        m_client->cancelRequest(m_currentRequest);
-        m_currentRequest = MessageId();
+        m_client->cancelRequest(m_currentRequest.value());
+        m_client->removeAssistProcessor(this);
+        m_currentRequest.reset();
     }
 }
 
@@ -363,7 +370,7 @@ void LanguageClientCompletionAssistProcessor::handleCompletionResponse(
 {
     // We must report back to the code assistant under all circumstances
     qCDebug(LOGLSPCOMPLETION) << QTime::currentTime() << " : got completions";
-    m_currentRequest = MessageId();
+    m_currentRequest.reset();
     QTC_ASSERT(m_client, setAsyncProposalAvailable(nullptr); return);
     if (auto error = response.error())
         m_client->log(error.value());
@@ -371,6 +378,7 @@ void LanguageClientCompletionAssistProcessor::handleCompletionResponse(
     const Utils::optional<CompletionResult> &result = response.result();
     if (!result || Utils::holds_alternative<std::nullptr_t>(*result)) {
         setAsyncProposalAvailable(nullptr);
+        m_client->removeAssistProcessor(this);
         return;
     }
 
@@ -391,6 +399,7 @@ void LanguageClientCompletionAssistProcessor::handleCompletionResponse(
     proposal->setFragile(true);
     proposal->setSupportsPrefix(false);
     setAsyncProposalAvailable(proposal);
+    m_client->removeAssistProcessor(this);
     qCDebug(LOGLSPCOMPLETION) << QTime::currentTime() << " : "
                               << items.count() << " completions handled";
 }

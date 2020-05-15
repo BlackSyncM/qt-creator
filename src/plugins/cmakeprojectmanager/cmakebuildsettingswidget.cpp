@@ -25,39 +25,30 @@
 
 #include "cmakebuildsettingswidget.h"
 
+#include "cmakebuildconfiguration.h"
+#include "cmakebuildsystem.h"
+#include "cmakekitinformation.h"
 #include "configmodel.h"
 #include "configmodelitemdelegate.h"
-#include "cmakekitinformation.h"
-#include "cmakeproject.h"
-#include "cmakebuildconfiguration.h"
 
-#include <coreplugin/icore.h>
 #include <coreplugin/find/itemviewfind.h>
-#include <projectexplorer/kitmanager.h>
+#include <projectexplorer/buildaspects.h>
 #include <projectexplorer/project.h>
-#include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/target.h>
 #include <qtsupport/qtbuildaspects.h>
 
 #include <utils/categorysortfiltermodel.h>
 #include <utils/detailswidget.h>
-#include <utils/fancylineedit.h>
 #include <utils/headerviewstretcher.h>
 #include <utils/infolabel.h>
 #include <utils/itemviews.h>
-#include <utils/pathchooser.h>
 #include <utils/progressindicator.h>
+#include <utils/qtcassert.h>
 
 #include <QBoxLayout>
 #include <QCheckBox>
-#include <QComboBox>
-#include <QFrame>
 #include <QGridLayout>
-#include <QLabel>
 #include <QPushButton>
-#include <QSortFilterProxyModel>
-#include <QSpacerItem>
-#include <QStyledItemDelegate>
 #include <QMenu>
 
 using namespace ProjectExplorer;
@@ -105,20 +96,15 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setColumnStretch(1, 10);
 
-    auto project = bc->project();
-
-    auto buildDirChooser = new Utils::PathChooser;
-    buildDirChooser->setBaseDirectory(project->projectDirectory());
-    buildDirChooser->setFileName(bc->buildDirectory());
-    connect(buildDirChooser, &Utils::PathChooser::rawPathChanged, this,
-            [this](const QString &path) {
-                m_configModel->flush(); // clear out config cache...
-                m_buildConfiguration->setBuildDirectory(Utils::FilePath::fromString(path));
-            });
-
     int row = 0;
-    mainLayout->addWidget(new QLabel(tr("Build directory:")), row, 0);
-    mainLayout->addWidget(buildDirChooser, row, 1, 1, 2);
+    auto buildDirAspect = bc->buildDirectoryAspect();
+    connect(buildDirAspect, &ProjectConfigurationAspect::changed, this, [this]() {
+        m_configModel->flush(); // clear out config cache...;
+    });
+    auto buildDirWidget = new QWidget;
+    LayoutBuilder buildDirWidgetBuilder(buildDirWidget);
+    buildDirAspect->addToLayout(buildDirWidgetBuilder);
+    mainLayout->addWidget(buildDirWidget, row, 0, 1, 2);
     ++row;
 
     auto qmlDebugAspect = bc->aspect<QtSupport::QmlDebuggingAspect>();
@@ -131,11 +117,6 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     ++row;
     mainLayout->addItem(new QSpacerItem(20, 10), row, 0);
-
-    ++row;
-    m_errorMessageLabel = new Utils::InfoLabel({}, Utils::InfoLabel::Error);
-    m_errorMessageLabel->setVisible(false);
-    mainLayout->addWidget(m_errorMessageLabel, row, 0, 1, -1, Qt::AlignHCenter);
 
     ++row;
     m_warningMessageLabel = new Utils::InfoLabel({}, Utils::InfoLabel::Warning);
@@ -257,18 +238,17 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         m_configView->expandAll();
     }
 
-    connect(bc->target(), &Target::parsingFinished, this, [this, buildDirChooser, stretcher] {
+    connect(bc->target(), &Target::parsingFinished, this, [this, stretcher] {
         m_configModel->setConfiguration(m_buildConfiguration->configurationFromCMake());
         m_configView->expandAll();
         m_configView->setEnabled(true);
         stretcher->stretch();
         updateButtonState();
-        buildDirChooser->triggerChanged(); // refresh valid state...
         handleQmlDebugCxxFlags();
         m_showProgressTimer.stop();
         m_progressIndicator->hide();
     });
-    connect(m_buildConfiguration, &CMakeBuildConfiguration::errorOccured,
+    connect(m_buildConfiguration, &CMakeBuildConfiguration::errorOccurred,
             this, [this]() {
         m_showProgressTimer.stop();
         m_progressIndicator->hide();
@@ -323,8 +303,8 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         m_configView->edit(idx);
     });
 
-    connect(bc, &CMakeBuildConfiguration::errorOccured, this, &CMakeBuildSettingsWidget::setError);
-    connect(bc, &CMakeBuildConfiguration::warningOccured, this, &CMakeBuildSettingsWidget::setWarning);
+    connect(bc, &CMakeBuildConfiguration::errorOccurred, this, &CMakeBuildSettingsWidget::setError);
+    connect(bc, &CMakeBuildConfiguration::warningOccurred, this, &CMakeBuildSettingsWidget::setWarning);
 
     updateFromKit();
     connect(m_buildConfiguration->target(), &ProjectExplorer::Target::kitChanged,
@@ -342,9 +322,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
 void CMakeBuildSettingsWidget::setError(const QString &message)
 {
-    bool showError = !message.isEmpty();
-    m_errorMessageLabel->setVisible(showError);
-    m_errorMessageLabel->setText(message);
+    m_buildConfiguration->buildDirectoryAspect()->setProblem(message);
 }
 
 void CMakeBuildSettingsWidget::setWarning(const QString &message)

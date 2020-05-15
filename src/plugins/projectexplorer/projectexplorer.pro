@@ -11,7 +11,6 @@ HEADERS += projectexplorer.h \
     abi.h \
     abiwidget.h \
     addrunconfigdialog.h \
-    ansifilterparser.h \
     buildaspects.h \
     buildinfo.h \
     buildpropertiessettings.h \
@@ -20,6 +19,7 @@ HEADERS += projectexplorer.h \
     buildtargettype.h \
     clangparser.h \
     configtaskhandler.h \
+    customparserssettingspage.h \
     desktoprunconfiguration.h \
     environmentaspect.h \
     environmentaspectwidget.h \
@@ -105,7 +105,6 @@ HEADERS += projectexplorer.h \
     projectexplorersettingspage.h \
     baseprojectwizarddialog.h \
     miniprojecttargetselector.h \
-    buildenvironmentwidget.h \
     ldparser.h \
     lldparser.h \
     linuxiccparser.h \
@@ -173,12 +172,12 @@ SOURCES += projectexplorer.cpp \
     abi.cpp \
     abiwidget.cpp \
     addrunconfigdialog.cpp \
-    ansifilterparser.cpp \
     buildaspects.cpp \
     buildinfo.cpp \
     buildpropertiessettingspage.cpp \
     buildsystem.cpp \
     clangparser.cpp \
+    customparserssettingspage.cpp \
     configtaskhandler.cpp \
     desktoprunconfiguration.cpp \
     environmentaspect.cpp \
@@ -259,7 +258,6 @@ SOURCES += projectexplorer.cpp \
     projectexplorersettingspage.cpp \
     baseprojectwizarddialog.cpp \
     miniprojecttargetselector.cpp \
-    buildenvironmentwidget.cpp \
     ldparser.cpp \
     lldparser.cpp \
     linuxiccparser.cpp \

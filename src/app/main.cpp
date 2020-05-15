@@ -69,6 +69,10 @@
 #include <qtsystemexceptionhandler.h>
 #endif
 
+#ifdef Q_OS_LINUX
+#include <malloc.h>
+#endif
+
 using namespace ExtensionSystem;
 
 enum { OptionIndent = 4, DescriptionIndent = 34 };
@@ -459,6 +463,11 @@ int main(int argc, char **argv)
     Options options = parseCommandLine(argc, argv);
     applicationDirPath(argv[0]);
 
+    if (qEnvironmentVariableIsSet("QTC_DO_NOT_PROPAGATE_LD_PRELOAD")) {
+        Utils::Environment::modifySystemEnvironment(
+            {{"LD_PRELOAD", "", Utils::EnvironmentItem::Unset}});
+    }
+
     if (options.userLibraryPath) {
         if ((*options.userLibraryPath).isEmpty()) {
             Utils::Environment::modifySystemEnvironment(
@@ -698,6 +707,33 @@ int main(int argc, char **argv)
 
     // shutdown plugin manager on the exit
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &pluginManager, &PluginManager::shutdown);
+
+#ifdef Q_OS_LINUX
+    class MemoryTrimmer : public QObject
+    {
+    public:
+        MemoryTrimmer()
+        {
+            m_trimTimer.setSingleShot(true);
+            m_trimTimer.setInterval(60000);
+            // glibc may not actually free memory in free().
+            connect(&m_trimTimer, &QTimer::timeout, this, [] { malloc_trim(0); });
+        }
+
+        bool eventFilter(QObject *, QEvent *e) override
+        {
+            if ((e->type() == QEvent::MouseButtonPress || e->type() == QEvent::KeyPress)
+                    && !m_trimTimer.isActive()) {
+                m_trimTimer.start();
+            }
+            return false;
+        }
+
+        QTimer m_trimTimer;
+    };
+    MemoryTrimmer trimmer;
+    app.installEventFilter(&trimmer);
+#endif
 
     return restarter.restartOrExit(app.exec());
 }

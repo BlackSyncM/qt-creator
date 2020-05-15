@@ -30,5 +30,10 @@ namespace Constants {
 
 const char GenericLinuxOsType[] = "GenericLinuxOsType";
 
+const char CheckForFreeDiskSpaceId[] = "RemoteLinux.CheckForFreeDiskSpaceStep";
+const char DirectUploadStepId[] = "RemoteLinux.DirectUploadStep";
+const char MakeInstallStepId[] = "RemoteLinux.MakeInstall";
+const char SupportsRSync[] =  "RemoteLinux.SupportsRSync";
+
 } // Constants
 } // RemoteLinux

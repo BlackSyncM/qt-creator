@@ -49,6 +49,7 @@
 #include <QApplication>
 #include <QDialogButtonBox>
 #include <QSortFilterProxyModel>
+#include <QRegularExpression>
 
 #include <QHelpEngine>
 
@@ -76,8 +77,7 @@ BookmarkDialog::BookmarkDialog(BookmarkManager *manager, const QString &title,
     proxyModel->setDynamicSortFilter(true);
     proxyModel->setFilterRole(Qt::UserRole + 10);
     proxyModel->setSourceModel(bookmarkManager->treeBookmarkModel());
-    proxyModel->setFilterRegExp(QRegExp(QLatin1String("Folder"),
-        Qt::CaseSensitive, QRegExp::FixedString));
+    proxyModel->setFilterRegularExpression(QRegularExpression(QLatin1String("Folder")));
     ui.treeView->setModel(proxyModel);
 
     ui.treeView->expandAll();
@@ -273,6 +273,7 @@ bool BookmarkDialog::eventFilter(QObject *object, QEvent *e)
                 }
             }   break;
 
+            case Qt::Key_Backspace:
             case Qt::Key_Delete: {
                 bookmarkManager->removeBookmarkItem(ui.treeView,
                     proxyModel->mapToSource(index));
@@ -319,14 +320,14 @@ void BookmarkWidget::filterChanged()
 {
     bool searchBookmarks = searchField->text().isEmpty();
     if (!searchBookmarks) {
-        regExp.setPattern(searchField->text());
+        regExp.setPattern(QRegularExpression::escape(searchField->text()));
         filterBookmarkModel->setSourceModel(bookmarkManager->listBookmarkModel());
     } else {
         regExp.setPattern(QString());
         filterBookmarkModel->setSourceModel(bookmarkManager->treeBookmarkModel());
     }
 
-    filterBookmarkModel->setFilterRegExp(regExp);
+    filterBookmarkModel->setFilterRegularExpression(regExp);
 
     const QModelIndex &index = treeView->indexAt(QPoint(1, 1));
     if (index.isValid())
@@ -407,8 +408,7 @@ void BookmarkWidget::customContextMenuRequested(const QPoint &point)
 
 void BookmarkWidget::setup()
 {
-    regExp.setPatternSyntax(QRegExp::FixedString);
-    regExp.setCaseSensitivity(Qt::CaseInsensitive);
+    regExp.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
 
     QLayout *vlayout = new QVBoxLayout(this);
     vlayout->setContentsMargins(0, 0, 0, 0);
@@ -489,7 +489,7 @@ bool BookmarkWidget::eventFilter(QObject *object, QEvent *e)
                         treeView->edit(index);
                         item->setEditable(false);
                     }
-                } else if (ke->key() == Qt::Key_Delete) {
+                } else if (ke->key() == Qt::Key_Delete || ke->key() == Qt::Key_Backspace) {
                     bookmarkManager->removeBookmarkItem(treeView, src);
                 }
             }

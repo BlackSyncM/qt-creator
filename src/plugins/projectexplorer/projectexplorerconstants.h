@@ -110,6 +110,7 @@ const char KITS_SETTINGS_PAGE_ID[] = "D.ProjectExplorer.KitsOptions";
 const char SSH_SETTINGS_PAGE_ID[] = "F.ProjectExplorer.SshOptions";
 const char TOOLCHAIN_SETTINGS_PAGE_ID[] = "M.ProjectExplorer.ToolChainOptions";
 const char DEBUGGER_SETTINGS_PAGE_ID[] = "N.ProjectExplorer.DebuggerOptions";
+const char CUSTOM_PARSERS_SETTINGS_PAGE_ID[] = "X.ProjectExplorer.CustomParsersSettingsPage";
 
 // Build and Run settings category
 const char BUILD_AND_RUN_SETTINGS_CATEGORY[]  = "K.BuildAndRun";
@@ -210,6 +211,8 @@ const char PROJECTTREE_ID[] = "Projects";
 
 // File icon overlays
 const char FILEOVERLAY_QT[]=":/projectexplorer/images/fileoverlay_qt.png";
+const char FILEOVERLAY_GROUP[] = ":/projectexplorer/images/fileoverlay_group.png";
+const char FILEOVERLAY_PRODUCT[] = ":/projectexplorer/images/fileoverlay_product.png";
 const char FILEOVERLAY_QML[]=":/projectexplorer/images/fileoverlay_qml.png";
 const char FILEOVERLAY_UI[]=":/projectexplorer/images/fileoverlay_ui.png";
 const char FILEOVERLAY_QRC[]=":/projectexplorer/images/fileoverlay_qrc.png";

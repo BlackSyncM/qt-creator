@@ -31,8 +31,7 @@
 
 namespace Utils { class FilePath; }
 namespace ProjectExplorer {
-
-class IOutputParser;
+class OutputTaskParser;
 class ProcessParameters;
 
 // Documentation inside.
@@ -46,16 +45,13 @@ public:
     bool ignoreReturnValue();
     void setIgnoreReturnValue(bool b);
 
-    void setOutputParser(IOutputParser *parser);
-    void appendOutputParser(IOutputParser *parser);
-    IOutputParser *outputParser() const;
-
     void emitFaultyConfigurationMessage();
 
 protected:
     AbstractProcessStep(BuildStepList *bsl, Core::Id id);
     ~AbstractProcessStep() override;
     bool init() override;
+    void setupOutputFormatter(Utils::OutputFormatter *formatter) override;
     void doRun() override;
     void setLowPriority();
     virtual void finish(bool success);
@@ -64,8 +60,8 @@ protected:
     virtual void processFinished(int exitCode, QProcess::ExitStatus status);
     virtual void processStartupFailed();
     virtual bool processSucceeded(int exitCode, QProcess::ExitStatus status);
-    virtual void stdOutput(const QString &line);
-    virtual void stdError(const QString &line);
+    virtual void stdOutput(const QString &output);
+    virtual void stdError(const QString &output);
 
     void doCancel() override;
 
@@ -76,8 +72,6 @@ private:
     void slotProcessFinished(int, QProcess::ExitStatus);
 
     void cleanUp(QProcess *process);
-
-    void taskAdded(const Task &task, int linkedOutputLines = 0, int skipLines = 0);
 
     void outputAdded(const QString &string, BuildStep::OutputFormat format);
 

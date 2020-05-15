@@ -18,6 +18,7 @@ add_qtc_plugin(Core
     coreplugin.cpp coreplugin.h
     designmode.cpp designmode.h
     dialogs/addtovcsdialog.cpp dialogs/addtovcsdialog.h dialogs/addtovcsdialog.ui
+    dialogs/codecselector.cpp dialogs/codecselector.h
     dialogs/externaltoolconfig.cpp dialogs/externaltoolconfig.h dialogs/externaltoolconfig.ui
     dialogs/filepropertiesdialog.cpp dialogs/filepropertiesdialog.h dialogs/filepropertiesdialog.ui
     dialogs/ioptionspage.cpp dialogs/ioptionspage.h
@@ -179,9 +180,8 @@ extend_qtc_plugin(Core
 )
 
 extend_qtc_plugin(Core
-  CONDITION TARGET Qt5::Script
+  CONDITION Qt5_VERSION VERSION_GREATER_EQUAL 5.14.0
   FEATURE_INFO "Script Locator filter"
-  DEPENDS Qt5::Script
   DEFINES WITH_JAVASCRIPTFILTER
   SOURCES
     locator/javascriptfilter.cpp locator/javascriptfilter.h

@@ -112,7 +112,6 @@ namespace {
     const QLatin1String KeystoreLocationKey("KeystoreLocation");
     const QLatin1String AutomaticKitCreationKey("AutomatiKitCreation");
     const QLatin1String PartitionSizeKey("PartitionSize");
-    const QLatin1String ToolchainHostKey("ToolchainHost");
 
     const QLatin1String ArmToolchainPrefix("arm-linux-androideabi");
     const QLatin1String X86ToolchainPrefix("x86");
@@ -439,7 +438,7 @@ bool AndroidConfig::isCmdlineSdkToolsInstalled() const
 
 FilePath AndroidConfig::adbToolPath() const
 {
-    return m_sdkLocation.pathAppended("platform-tools/adb" QTC_HOST_EXE_SUFFIX);
+    return m_sdkLocation / "platform-tools/adb" QTC_HOST_EXE_SUFFIX;
 }
 
 FilePath AndroidConfig::androidToolPath() const
@@ -447,12 +446,12 @@ FilePath AndroidConfig::androidToolPath() const
     if (HostOsInfo::isWindowsHost()) {
         // I want to switch from using android.bat to using an executable. All it really does is call
         // Java and I've made some progress on it. So if android.exe exists, return that instead.
-        const FilePath path = m_sdkLocation.pathAppended("tools/android" QTC_HOST_EXE_SUFFIX);
+        const FilePath path = m_sdkLocation / "tools/android" QTC_HOST_EXE_SUFFIX;
         if (path.exists())
             return path;
-        return m_sdkLocation.pathAppended("tools/android" ANDROID_BAT_SUFFIX);
+        return m_sdkLocation / "tools/android" ANDROID_BAT_SUFFIX;
     }
-    return m_sdkLocation.pathAppended("tools/android");
+    return m_sdkLocation / "tools/android";
 }
 
 FilePath AndroidConfig::emulatorToolPath() const
@@ -460,7 +459,7 @@ FilePath AndroidConfig::emulatorToolPath() const
     QString relativePath = "emulator/emulator";
     if (sdkToolsVersion() < QVersionNumber(25, 3, 0) && !isCmdlineSdkToolsInstalled())
         relativePath = "tools/emulator";
-    return m_sdkLocation.pathAppended(relativePath + QTC_HOST_EXE_SUFFIX);
+    return m_sdkLocation / (relativePath + QTC_HOST_EXE_SUFFIX);
 }
 
 FilePath AndroidConfig::sdkManagerToolPath() const
@@ -472,7 +471,7 @@ FilePath AndroidConfig::sdkManagerToolPath() const
         if (HostOsInfo::isWindowsHost())
             toolPath += ANDROID_BAT_SUFFIX;
 
-        const FilePath sdkmanagerPath = m_sdkLocation.pathAppended(toolPath);
+        const FilePath sdkmanagerPath = m_sdkLocation / toolPath;
         if (sdkmanagerPath.exists())
             return sdkmanagerPath;
     }
@@ -489,7 +488,7 @@ FilePath AndroidConfig::avdManagerToolPath() const
         if (HostOsInfo::isWindowsHost())
             toolPath += ANDROID_BAT_SUFFIX;
 
-        const FilePath sdkmanagerPath = m_sdkLocation.pathAppended(toolPath);
+        const FilePath sdkmanagerPath = m_sdkLocation / toolPath;
         if (sdkmanagerPath.exists())
             return sdkmanagerPath;
     }
@@ -499,16 +498,16 @@ FilePath AndroidConfig::avdManagerToolPath() const
 
 FilePath AndroidConfig::aaptToolPath() const
 {
-    const Utils::FilePath aaptToolPath = m_sdkLocation.pathAppended("build-tools");
+    const FilePath aaptToolPath = m_sdkLocation / "build-tools";
     QString toolPath = QString("%1/aapt").arg(buildToolsVersion().toString());
     if (HostOsInfo::isWindowsHost())
         toolPath += QTC_HOST_EXE_SUFFIX;
-    return aaptToolPath.pathAppended(toolPath);
+    return aaptToolPath / toolPath;
 }
 
 FilePath AndroidConfig::toolchainPathFromNdk(const Utils::FilePath &ndkLocation) const
 {
-    const FilePath toolchainPath = ndkLocation.pathAppended("toolchains/llvm/prebuilt/");
+    const FilePath toolchainPath = ndkLocation / "toolchains/llvm/prebuilt/";
 
     // detect toolchain host
     QStringList hostPatterns;
@@ -528,7 +527,7 @@ FilePath AndroidConfig::toolchainPathFromNdk(const Utils::FilePath &ndkLocation)
     QDirIterator iter(toolchainPath.toString(), hostPatterns, QDir::Dirs);
     if (iter.hasNext()) {
         iter.next();
-        return toolchainPath.pathAppended(iter.fileName());
+        return toolchainPath / iter.fileName();
     }
 
     return {};
@@ -544,7 +543,7 @@ FilePath AndroidConfig::clangPathFromNdk(const Utils::FilePath &ndkLocation) con
     const FilePath path = toolchainPathFromNdk(ndkLocation);
     if (path.isEmpty())
         return {};
-    return path.pathAppended(HostOsInfo::withExecutableSuffix("bin/clang"));
+    return path / HostOsInfo::withExecutableSuffix("bin/clang");
 }
 
 FilePath AndroidConfig::clangPath(const BaseQtVersion *qtVersion) const
@@ -878,9 +877,9 @@ QVersionNumber AndroidConfig::sdkToolsVersion() const
     if (m_sdkLocation.exists()) {
         FilePath sdkToolsPropertiesPath;
         if (isCmdlineSdkToolsInstalled())
-            sdkToolsPropertiesPath = m_sdkLocation.pathAppended("cmdline-tools/latest/source.properties");
+            sdkToolsPropertiesPath = m_sdkLocation / "cmdline-tools/latest/source.properties";
         else
-            sdkToolsPropertiesPath = m_sdkLocation.pathAppended("tools/source.properties");
+            sdkToolsPropertiesPath = m_sdkLocation / "tools/source.properties";
         QSettings settings(sdkToolsPropertiesPath.toString(), QSettings::IniFormat);
         auto versionStr = settings.value(sdkToolsVersionKey).toString();
         version = QVersionNumber::fromString(versionStr);
@@ -893,7 +892,7 @@ QVersionNumber AndroidConfig::buildToolsVersion() const
     //TODO: return version according to qt version
     QVersionNumber maxVersion;
     QDir buildToolsDir(m_sdkLocation.pathAppended("build-tools").toString());
-    for (const QFileInfo &file: buildToolsDir.entryList(QDir::Dirs|QDir::NoDotAndDotDot))
+    for (const QFileInfo &file: buildToolsDir.entryInfoList(QDir::Dirs|QDir::NoDotAndDotDot))
         maxVersion = qMax(maxVersion, QVersionNumber::fromString(file.fileName()));
     return maxVersion;
 }
@@ -916,31 +915,6 @@ FilePath AndroidConfig::ndkLocation(const BaseQtVersion *qtVersion) const
 FilePath AndroidConfig::defaultNdkLocation() const
 {
     return sdkLocation().pathAppended(m_defaultSdkDepends.ndkPath);
-}
-
-static inline QString gdbServerArch(const QString &androidAbi)
-{
-    if (androidAbi == "arm64-v8a") {
-        return QString("arm64");
-    } else if (androidAbi == "armeabi-v7a") {
-        return QString("arm");
-    } else if (androidAbi == "x86_64") {
-        return QString("x86_64");
-    } else if (androidAbi == "x86") {
-        return QString("x86");
-    } else {
-        return {};
-    }
-}
-
-FilePath AndroidConfig::gdbServer(const QString &androidAbi, const BaseQtVersion *qtVersion) const
-{
-    const FilePath path = AndroidConfigurations::currentConfig().ndkLocation(qtVersion)
-            .pathAppended(QString("prebuilt/android-%1/gdbserver/gdbserver")
-                                                .arg(gdbServerArch(androidAbi)));
-    if (path.exists())
-        return path;
-    return {};
 }
 
 QVersionNumber AndroidConfig::ndkVersion(const BaseQtVersion *qtVersion) const
@@ -1399,9 +1373,9 @@ void AndroidConfigurations::updateAutomaticKitList()
                 if (qt != QtSupport::QtKitAspect::qtVersion(b))
                     return false;
                 return matchToolChain(toolChainForLanguage[ProjectExplorer::Constants::CXX_LANGUAGE_ID],
-                                      ToolChainKitAspect::toolChain(b, ProjectExplorer::Constants::CXX_LANGUAGE_ID))
+                                      ToolChainKitAspect::cxxToolChain(b))
                         && matchToolChain(toolChainForLanguage[ProjectExplorer::Constants::C_LANGUAGE_ID],
-                                          ToolChainKitAspect::toolChain(b, ProjectExplorer::Constants::C_LANGUAGE_ID));
+                                          ToolChainKitAspect::cToolChain(b));
             });
 
             const auto initializeKit = [allLanguages, device, tc, qt](Kit *k) {

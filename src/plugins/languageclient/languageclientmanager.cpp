@@ -35,6 +35,7 @@
 #include <languageserverprotocol/messages.h>
 #include <projectexplorer/session.h>
 #include <projectexplorer/project.h>
+#include <projectexplorer/projectexplorer.h>
 #include <texteditor/texteditor.h>
 #include <texteditor/textmark.h>
 #include <texteditor/textdocument.h>
@@ -75,7 +76,7 @@ LanguageClientManager::LanguageClientManager(QObject *parent)
     connect(EditorManager::instance(), &EditorManager::aboutToSave,
             this, &LanguageClientManager::documentWillSave);
     connect(SessionManager::instance(), &SessionManager::projectAdded,
-            this, &LanguageClientManager::projectAdded);
+            this, &LanguageClientManager::updateProject);
     connect(SessionManager::instance(), &SessionManager::projectRemoved,
             this, &LanguageClientManager::projectRemoved);
 }
@@ -244,11 +245,8 @@ void LanguageClientManager::applySettings()
             }
             if (!documents.isEmpty()) {
                 Client *client = startClient(setting);
-                for (TextEditor::TextDocument *document : documents) {
-                    if (managerInstance->m_clientForDocument.value(document).isNull())
-                        managerInstance->m_clientForDocument[document] = client;
+                for (TextEditor::TextDocument *document : documents)
                     client->openDocument(document);
-                }
             }
             break;
         }
@@ -331,13 +329,21 @@ Client *LanguageClientManager::clientForUri(const DocumentUri &uri)
     return clientForFilePath(uri.toFilePath());
 }
 
-void LanguageClientManager::reOpenDocumentWithClient(TextEditor::TextDocument *document, Client *client)
+void LanguageClientManager::openDocumentWithClient(TextEditor::TextDocument *document, Client *client)
 {
-    Utils::ExecuteOnDestruction outlineUpdater(&TextEditor::IOutlineWidgetFactory::updateOutline);
-    if (Client *currentClient = clientForDocument(document))
+    Client *currentClient = clientForDocument(document);
+    if (client == currentClient)
+        return;
+    if (currentClient)
         currentClient->deactivateDocument(document);
     managerInstance->m_clientForDocument[document] = client;
-    client->activateDocument(document);
+    if (client) {
+        if (!client->documentOpen(document))
+            client->openDocument(document);
+        else
+            client->activateDocument(document);
+    }
+    TextEditor::IOutlineWidgetFactory::updateOutline();
 }
 
 void LanguageClientManager::logBaseMessage(const LspLogMessage::MessageSender sender,
@@ -457,20 +463,10 @@ void LanguageClientManager::documentOpened(Core::IDocument *document)
             } else if (setting->m_startBehavior == BaseSettings::RequiresFile && clients.isEmpty()) {
                 clients << startClient(setting);
             }
-            for (auto client : clients) {
-                openDocumentWithClient(textDocument, client);
-                if (!m_clientForDocument.contains(textDocument))
-                    m_clientForDocument[textDocument] = client;
-            }
+            for (auto client : clients)
+                client->openDocument(textDocument);
         }
     }
-}
-
-void LanguageClientManager::openDocumentWithClient(TextEditor::TextDocument *document,
-                                                   Client *client)
-{
-    if (client && client->state() != Client::Error)
-        client->openDocument(document);
 }
 
 void LanguageClientManager::documentClosed(Core::IDocument *document)
@@ -608,7 +604,7 @@ void LanguageClientManager::findUsages(TextEditor::TextDocument *document, const
     }
 }
 
-void LanguageClientManager::projectAdded(ProjectExplorer::Project *project)
+void LanguageClientManager::updateProject(ProjectExplorer::Project *project)
 {
     for (BaseSettings *setting : m_currentSettings) {
         if (setting->isValid()
@@ -618,22 +614,34 @@ void LanguageClientManager::projectAdded(ProjectExplorer::Project *project)
                                      [project](QPointer<Client> client) {
                                          return client->project() == project;
                                      })
-                    == nullptr) {
+                == nullptr) {
+                Client *newClient = nullptr;
                 for (Core::IDocument *doc : Core::DocumentModel::openedDocuments()) {
-                    if (setting->m_languageFilter.isSupported(doc)) {
-                        if (project->isKnownFile(doc->filePath()))
-                            startClient(setting, project);
+                    if (setting->m_languageFilter.isSupported(doc)
+                        && project->isKnownFile(doc->filePath())) {
+                        if (auto textDoc = qobject_cast<TextEditor::TextDocument *>(doc)) {
+                            if (!newClient)
+                                newClient = startClient(setting, project);
+                            if (!newClient)
+                                break;
+                            newClient->openDocument(textDoc);
+                        }
                     }
                 }
             }
         }
     }
+    connect(project, &ProjectExplorer::Project::fileListChanged, this, [this, project]() {
+        updateProject(project);
+    });
+
     for (Client *interface : reachableClients())
         interface->projectOpened(project);
 }
 
 void LanguageClientManager::projectRemoved(ProjectExplorer::Project *project)
 {
+    project->disconnect(this);
     for (Client *interface : m_clients)
         interface->projectClosed(project);
 }

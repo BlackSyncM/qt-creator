@@ -115,6 +115,9 @@ public:
 
     void addToLayout(LayoutBuilder &builder) override;
 
+    // Hook between UI and BaseStringAspect:
+    using ValueAcceptor = std::function<Utils::optional<QString>(const QString &, const QString &)>;
+    void setValueAcceptor(ValueAcceptor &&acceptor);
     QString value() const;
     void setValue(const QString &val);
 
@@ -127,10 +130,13 @@ public:
     void setPlaceHolderText(const QString &placeHolderText);
     void setHistoryCompleter(const QString &historyCompleterKey);
     void setExpectedKind(const Utils::PathChooser::Kind expectedKind);
+    void setFileDialogOnly(bool requireFileDialog);
     void setEnvironment(const Utils::Environment &env);
     void setBaseFileName(const Utils::FilePath &baseFileName);
     void setReadOnly(bool readOnly);
     void setMacroExpanderProvider(const Utils::MacroExpanderProvider &expanderProvider);
+
+    void validateInput();
 
     enum class UncheckedSemantics { Disabled, ReadOnly };
     enum class CheckBoxPlacement { Top, Right };

@@ -26,6 +26,8 @@
 #pragma once
 
 #include "projectconfiguration.h"
+
+#include "buildconfiguration.h"
 #include "projectexplorer_export.h"
 
 #include <utils/optional.h>
@@ -37,6 +39,13 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+
+namespace Utils {
+class Environment;
+class FilePath;
+class MacroExpander;
+class OutputFormatter;
+} // Utils
 
 namespace ProjectExplorer {
 
@@ -59,6 +68,7 @@ protected:
     explicit BuildStep(BuildStepList *bsl, Core::Id id);
 
 public:
+    ~BuildStep() override;
     virtual bool init() = 0;
     void run();
     void cancel();
@@ -77,6 +87,13 @@ public:
     ProjectConfiguration *projectConfiguration() const;
 
     BuildSystem *buildSystem() const;
+    Utils::Environment buildEnvironment() const;
+    Utils::FilePath buildDirectory() const;
+    BuildConfiguration::BuildType buildType() const;
+    Utils::MacroExpander *macroExpander() const;
+    QString fallbackWorkingDirectory() const;
+
+    virtual void setupOutputFormatter(Utils::OutputFormatter *formatter);
 
     enum class OutputFormat {
         Stdout, Stderr, // These are for forwarded output from external tools
@@ -104,8 +121,8 @@ public:
 
 signals:
     /// Adds a \p task to the Issues pane.
-    /// Do note that for linking compile output with tasks, you should first emit the task
-    /// and then emit the output. \p linkedOutput lines will be linked. And the last \p skipLines will
+    /// Do note that for linking compile output with tasks, you should first emit the output
+    /// and then emit the task. \p linkedOutput lines will be linked. And the last \p skipLines will
     /// be skipped.
     void addTask(const ProjectExplorer::Task &task, int linkedOutputLines = 0, int skipLines = 0);
 

@@ -26,7 +26,6 @@
 #include "qmakenodes.h"
 
 #include "qmakeproject.h"
-#include "qmakeprojectmanager.h"
 
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/runconfiguration.h>
@@ -343,7 +342,7 @@ bool QmakeProFileNode::validParse() const
 
 void QmakeProFileNode::build()
 {
-    QmakeManager::buildProduct(getProject(), this);
+    m_buildSystem->buildHelper(QmakeBuildSystem::BUILD, false, this, nullptr);
 }
 
 QStringList QmakeProFileNode::targetApplications() const
@@ -504,12 +503,6 @@ QString QmakeProFileNode::singleVariableValue(const Variable var) const
 {
     const QStringList &values = variableValue(var);
     return values.isEmpty() ? QString() : values.first();
-}
-
-FilePath QmakeProFileNode::buildDir(BuildConfiguration *bc) const
-{
-    const QmakeProFile *pro = proFile();
-    return pro ? pro->buildDir(bc) : FilePath();
 }
 
 QString QmakeProFileNode::objectExtension() const

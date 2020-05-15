@@ -30,8 +30,6 @@
 #include "projectexplorerconstants.h"
 #include "buildmanager.h"
 
-#include <texteditor/fontsettings.h>
-#include <texteditor/texteditorsettings.h>
 #include <utils/qtcassert.h>
 
 using namespace ProjectExplorer;
@@ -59,27 +57,65 @@ GccParser::GccParser()
     // optional .exe postfix
     m_regExpGccNames.setPattern(QLatin1String(COMMAND_PATTERN));
     QTC_CHECK(m_regExpGccNames.isValid());
-
-    appendOutputParser(new Internal::LldParser);
-    appendOutputParser(new LdParser);
 }
 
-void GccParser::stdError(const QString &line)
+Core::Id GccParser::id()
 {
-    QString lne = rightTrimmed(line);
+    return Core::Id("ProjectExplorer.OutputParser.Gcc");
+}
+
+QList<OutputLineParser *> GccParser::gccParserSuite()
+{
+    return {new GccParser, new Internal::LldParser, new LdParser};
+}
+
+void GccParser::newTask(const Task &task)
+{
+    flush();
+    m_currentTask = task;
+    m_lines = 1;
+}
+
+void GccParser::flush()
+{
+    if (m_currentTask.isNull())
+        return;
+
+    setMonospacedDetailsFormat(m_currentTask);
+    Task t = m_currentTask;
+    m_currentTask.clear();
+    scheduleTask(t, m_lines, 1);
+    m_lines = 0;
+}
+
+void GccParser::amendDescription(const QString &desc)
+{
+    if (m_currentTask.isNull())
+        return;
+    m_currentTask.details.append(desc);
+    ++m_lines;
+    return;
+}
+
+OutputLineParser::Result GccParser::handleLine(const QString &line, OutputFormat type)
+{
+    if (type == StdOutFormat) {
+        flush();
+        return Status::NotHandled;
+    }
+
+    const QString lne = rightTrimmed(line);
 
     // Blacklist some lines to not handle them:
     if (lne.startsWith(QLatin1String("TeamBuilder ")) ||
         lne.startsWith(QLatin1String("distcc["))) {
-        IOutputParser::stdError(line);
-        return;
+        return Status::NotHandled;
     }
 
     // Handle misc issues:
-    if (lne.startsWith(QLatin1String("ERROR:")) ||
-        lne == QLatin1String("* cpp failed")) {
+    if (lne.startsWith(QLatin1String("ERROR:")) || lne == QLatin1String("* cpp failed")) {
         newTask(CompileTask(Task::Error, lne /* description */));
-        return;
+        return Status::InProgress;
     }
 
     QRegularExpressionMatch match = m_regExpGccNames.match(lne);
@@ -93,12 +129,11 @@ void GccParser::stdError(const QString &line)
             description = description.mid(7);
         }
         newTask(CompileTask(type, description));
-        return;
+        return Status::InProgress;
     }
 
     match = m_regExp.match(lne);
     if (match.hasMatch()) {
-        Utils::FilePath filename = Utils::FilePath::fromUserInput(match.captured(1));
         int lineno = match.captured(3).toInt();
         Task::TaskType type = Task::Unknown;
         QString description = match.captured(8);
@@ -113,71 +148,28 @@ void GccParser::stdError(const QString &line)
         if (match.captured(5).startsWith(QLatin1Char('#')))
             description = match.captured(5) + description;
 
-        newTask(CompileTask(type, description, filename, lineno));
-        return;
+        const FilePath filePath = absoluteFilePath(FilePath::fromUserInput(match.captured(1)));
+        LinkSpecs linkSpecs;
+        addLinkSpecForAbsoluteFilePath(linkSpecs, filePath, lineno, match, 1);
+        newTask(CompileTask(type, description, filePath, lineno));
+        return {Status::InProgress, linkSpecs};
     }
 
     match = m_regExpIncluded.match(lne);
     if (match.hasMatch()) {
-        newTask(CompileTask(Task::Unknown,
-                            lne.trimmed() /* description */,
-                            Utils::FilePath::fromUserInput(match.captured(1)) /* filename */,
-                            match.captured(3).toInt() /* linenumber */));
-        return;
+        const FilePath filePath = absoluteFilePath(FilePath::fromUserInput(match.captured(1)));
+        const int lineNo = match.captured(3).toInt();
+        LinkSpecs linkSpecs;
+        addLinkSpecForAbsoluteFilePath(linkSpecs, filePath, lineNo, match, 1);
+        newTask(CompileTask(Task::Unknown, lne.trimmed() /* description */, filePath, lineNo));
+        return {Status::InProgress, linkSpecs};
     } else if (lne.startsWith(' ') && !m_currentTask.isNull()) {
-        amendDescription(lne, true);
-        return;
+        amendDescription(lne);
+        return Status::InProgress;
     }
 
-    doFlush();
-    IOutputParser::stdError(line);
-}
-
-void GccParser::stdOutput(const QString &line)
-{
-    doFlush();
-    IOutputParser::stdOutput(line);
-}
-
-Core::Id GccParser::id()
-{
-    return Core::Id("ProjectExplorer.OutputParser.Gcc");
-}
-
-void GccParser::newTask(const Task &task)
-{
-    doFlush();
-    m_currentTask = task;
-    m_lines = 1;
-}
-
-void GccParser::doFlush()
-{
-    if (m_currentTask.isNull())
-        return;
-    Task t = m_currentTask;
-    m_currentTask.clear();
-    emit addTask(t, m_lines, 1);
-    m_lines = 0;
-}
-
-void GccParser::amendDescription(const QString &desc, bool monospaced)
-{
-    if (m_currentTask.isNull())
-        return;
-    int start = m_currentTask.description.count() + 1;
-    m_currentTask.description.append(QLatin1Char('\n'));
-    m_currentTask.description.append(desc);
-    if (monospaced) {
-        QTextLayout::FormatRange fr;
-        fr.start = start;
-        fr.length = desc.count() + 1;
-        fr.format.setFont(TextEditor::TextEditorSettings::fontSettings().font());
-        fr.format.setFontStyleHint(QFont::Monospace);
-        m_currentTask.formats.append(fr);
-    }
-    ++m_lines;
-    return;
+    flush();
+    return Status::NotHandled;
 }
 
 // Unit tests:
@@ -680,8 +672,7 @@ void ProjectExplorerPlugin::testGccOutputParsers_data()
             << (Tasks()
                 << CompileTask(Task::Unknown,
                                "In file included from <command-line>:0:0:",
-                               FilePath::fromUserInput("<command-line>"),
-                               0)
+                               FilePath::fromUserInput("<command-line>"))
                 << CompileTask(Task::Warning,
                                "\"STUPID_DEFINE\" redefined",
                                FilePath::fromUserInput("./mw.h"),
@@ -1008,8 +999,7 @@ void ProjectExplorerPlugin::testGccOutputParsers_data()
             << (Tasks()
                 << CompileTask(Task::Unknown,
                                "Note: No relevant classes found. No output generated.",
-                               FilePath::fromUserInput("/home/qtwebkithelpviewer.h"),
-                               0))
+                               FilePath::fromUserInput("/home/qtwebkithelpviewer.h")))
             << QString();
 
     QTest::newRow("GCC 9 output")
@@ -1122,7 +1112,7 @@ void ProjectExplorerPlugin::testGccOutputParsers_data()
 void ProjectExplorerPlugin::testGccOutputParsers()
 {
     OutputParserTester testbench;
-    testbench.appendOutputParser(new GccParser);
+    testbench.setLineParsers(GccParser::gccParserSuite());
     QFETCH(QString, input);
     QFETCH(OutputParserTester::Channel, inputChannel);
     QFETCH(Tasks, tasks);

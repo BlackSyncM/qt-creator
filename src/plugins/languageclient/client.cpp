@@ -40,6 +40,7 @@
 #include <projectexplorer/project.h>
 #include <projectexplorer/session.h>
 #include <texteditor/codeassist/documentcontentcompletion.h>
+#include <texteditor/codeassist/iassistprocessor.h>
 #include <texteditor/syntaxhighlighter.h>
 #include <texteditor/tabsettings.h>
 #include <texteditor/textdocument.h>
@@ -146,6 +147,8 @@ Client::~Client()
                 highlighter->clearAllExtraFormats();
         }
     }
+    for (IAssistProcessor *processor : m_runningAssistProcessors)
+        processor->setAsyncProposalAvailable(nullptr);
     updateEditorToolBar(m_openedDocument.keys());
 }
 
@@ -250,6 +253,7 @@ void Client::initialize()
     InitializeRequest initRequest;
     auto params = initRequest.params().value_or(InitializeParams());
     params.setCapabilities(generateClientCapabilities());
+    params.setInitializationOptions(m_initializationOptions);
     if (m_project) {
         params.setRootUri(DocumentUri::fromFilePath(m_project->projectDirectory()));
         params.setWorkSpaceFolders(Utils::transform(SessionManager::projects(), [](Project *pro){
@@ -325,8 +329,11 @@ void Client::openDocument(TextEditor::TextDocument *document)
     item.setVersion(document->document()->revision());
     sendContent(DidOpenTextDocumentNotification(DidOpenTextDocumentParams(item)));
 
-    if (LanguageClientManager::clientForDocument(document) == this)
+    const Client *currentClient = LanguageClientManager::clientForDocument(document);
+    if (currentClient == this) // this is the active client for the document so directly activate it
         activateDocument(document);
+    else if (currentClient == nullptr) // there is no client for this document so assign it to this server
+        LanguageClientManager::openDocumentWithClient(document, this);
 }
 
 void Client::sendContent(const IContent &content)
@@ -374,15 +381,17 @@ void Client::activateDocument(TextEditor::TextDocument *document)
     auto uri = DocumentUri::fromFilePath(document->filePath());
     showDiagnostics(uri);
     SemanticHighligtingSupport::applyHighlight(document, m_highlights.value(uri), capabilities());
-    // only replace the assist provider if the completion provider is the default one or null
-    if (!document->completionAssistProvider()
-        || qobject_cast<TextEditor::DocumentContentCompletionProvider *>(
-            document->completionAssistProvider())) {
-        m_resetAssistProvider[document] = {document->completionAssistProvider(),
-                                           document->functionHintAssistProvider(),
-                                           document->quickFixAssistProvider()};
+    // only replace the assist provider if the language server support it
+    if (m_serverCapabilities.completionProvider()) {
+        m_resetAssistProvider[document].completionAssistProvider = document->completionAssistProvider();
         document->setCompletionAssistProvider(m_clientProviders.completionAssistProvider);
+    }
+    if (m_serverCapabilities.signatureHelpProvider()) {
+        m_resetAssistProvider[document].functionHintProvider = document->functionHintAssistProvider();
         document->setFunctionHintAssistProvider(m_clientProviders.functionHintProvider);
+    }
+    if (m_serverCapabilities.codeActionProvider()) {
+        m_resetAssistProvider[document].quickFixAssistProvider = document->quickFixAssistProvider();
         document->setQuickFixAssistProvider(m_clientProviders.quickFixAssistProvider);
     }
     document->setFormatter(new LanguageClientFormatter(document, this));
@@ -506,7 +515,14 @@ void Client::documentContentsChanged(TextEditor::TextDocument *document,
             DidChangeTextDocumentParams::TextDocumentContentChangeEvent change;
             QTextDocument oldDoc(m_openedDocument[document]);
             QTextCursor cursor(&oldDoc);
-            cursor.setPosition(position + charsRemoved);
+            // Workaround https://bugreports.qt.io/browse/QTBUG-80662
+            // The contentsChanged gives a character count that can be wrong for QTextCursor
+            // when there are special characters removed/added (like formating characters).
+            // Also, characterCount return the number of characters + 1 because of the hidden
+            // paragraph separator character.
+            // This implementation is based on QWidgetTextControlPrivate::_q_contentsChanged.
+            // For charsAdded, textAt handles the case itself.
+            cursor.setPosition(qMin(oldDoc.characterCount() - 1, position + charsRemoved));
             cursor.setPosition(position, QTextCursor::KeepAnchor);
             change.setRange(Range(cursor));
             change.setRangeLength(cursor.selectionEnd() - cursor.selectionStart());
@@ -829,7 +845,12 @@ const ProjectExplorer::Project *Client::project() const
 
 void Client::setCurrentProject(ProjectExplorer::Project *project)
 {
+    using namespace ProjectExplorer;
+    if (m_project)
+        disconnect(m_project, &Project::fileListChanged, this, &Client::projectFileListChanged);
     m_project = project;
+    if (m_project)
+        connect(m_project, &Project::fileListChanged, this, &Client::projectFileListChanged);
 }
 
 void Client::projectOpened(ProjectExplorer::Project *project)
@@ -865,9 +886,24 @@ void Client::projectClosed(ProjectExplorer::Project *project)
     sendContent(change);
 }
 
+void Client::projectFileListChanged()
+{
+    for (Core::IDocument *doc : Core::DocumentModel::openedDocuments()) {
+        if (m_project->isKnownFile(doc->filePath())) {
+            if (auto textDocument = qobject_cast<TextEditor::TextDocument *>(doc))
+                openDocument(textDocument);
+        }
+    }
+}
+
 void Client::setSupportedLanguage(const LanguageFilter &filter)
 {
     m_languagFilter = filter;
+}
+
+void Client::setInitializationOptions(const QJsonObject &initializationOptions)
+{
+    m_initializationOptions = initializationOptions;
 }
 
 bool Client::isSupportedDocument(const TextEditor::TextDocument *document) const
@@ -887,11 +923,22 @@ bool Client::isSupportedUri(const DocumentUri &uri) const
                                        Utils::mimeTypeForFile(uri.toFilePath().fileName()).name());
 }
 
+void Client::addAssistProcessor(TextEditor::IAssistProcessor *processor)
+{
+    m_runningAssistProcessors.insert(processor);
+}
+
+void Client::removeAssistProcessor(TextEditor::IAssistProcessor *processor)
+{
+    m_runningAssistProcessors.remove(processor);
+}
+
 bool Client::needsRestart(const BaseSettings *settings) const
 {
     QTC_ASSERT(settings, return false);
     return m_languagFilter.mimeTypes != settings->m_languageFilter.mimeTypes
-            || m_languagFilter.filePattern != settings->m_languageFilter.filePattern;
+            || m_languagFilter.filePattern != settings->m_languageFilter.filePattern
+            || m_initializationOptions != settings->initializationOptions();
 }
 
 QList<Diagnostic> Client::diagnosticsAt(const DocumentUri &uri, const Range &range) const
@@ -926,6 +973,9 @@ bool Client::reset()
         document->disconnect(this);
     for (TextEditor::TextDocument *document : m_resetAssistProvider.keys())
         resetAssistProviders(document);
+    for (TextEditor::IAssistProcessor *processor : m_runningAssistProcessors)
+        processor->setAsyncProposalAvailable(nullptr);
+    m_runningAssistProcessors.clear();
     return true;
 }
 
@@ -1029,13 +1079,52 @@ void Client::showMessageBox(const ShowMessageRequestParams &message, const Messa
     box->show();
 }
 
+static void addDiagnosticsSelections(const Diagnostic &diagnostic,
+                              QTextDocument *textDocument,
+                              QList<QTextEdit::ExtraSelection> &extraSelections)
+{
+    QTextCursor cursor(textDocument);
+    cursor.setPosition(::Utils::Text::positionInText(textDocument,
+                                                     diagnostic.range().start().line() + 1,
+                                                     diagnostic.range().start().character() + 1));
+    cursor.setPosition(::Utils::Text::positionInText(textDocument,
+                                                     diagnostic.range().end().line() + 1,
+                                                     diagnostic.range().end().character() + 1),
+                       QTextCursor::KeepAnchor);
+
+    QTextCharFormat format;
+    const TextEditor::FontSettings& fontSettings = TextEditor::TextEditorSettings::instance()->fontSettings();
+    DiagnosticSeverity severity = diagnostic.severity().value_or(DiagnosticSeverity::Warning);
+
+    if (severity == DiagnosticSeverity::Error) {
+        format = fontSettings.toTextCharFormat(TextEditor::C_ERROR);
+    } else {
+        format = fontSettings.toTextCharFormat(TextEditor::C_WARNING);
+    }
+
+    extraSelections.push_back(std::move(QTextEdit::ExtraSelection{cursor, format}));
+}
+
 void Client::showDiagnostics(const DocumentUri &uri)
 {
     const FilePath &filePath = uri.toFilePath();
     if (TextEditor::TextDocument *doc = TextEditor::TextDocument::textDocumentForFilePath(
-            uri.toFilePath())) {
-        for (const Diagnostic &diagnostic : m_diagnostics.value(uri))
+            filePath)) {
+        QList<QTextEdit::ExtraSelection> extraSelections;
+
+        for (const Diagnostic &diagnostic : m_diagnostics.value(uri)) {
             doc->addMark(new TextMark(filePath, diagnostic, id()));
+            addDiagnosticsSelections(diagnostic, doc->document(), extraSelections);
+        }
+
+        for (Core::IEditor *editor : Core::DocumentModel::editorsForDocument(doc)) {
+            if (auto textEditor = qobject_cast<TextEditor::BaseTextEditor *>(editor)) {
+                TextEditor::TextEditorWidget *widget = textEditor->editorWidget();
+
+                widget->setExtraSelections(TextEditor::TextEditorWidget::CodeWarningsSelection,
+                                           extraSelections);
+            }
+        }
     }
 }
 
@@ -1048,11 +1137,17 @@ void Client::removeDiagnostics(const DocumentUri &uri)
 void Client::resetAssistProviders(TextEditor::TextDocument *document)
 {
     const AssistProviders providers = m_resetAssistProvider.take(document);
-    if (document->completionAssistProvider() == m_clientProviders.completionAssistProvider)
+
+    if (document->completionAssistProvider() == m_clientProviders.completionAssistProvider &&
+            providers.completionAssistProvider)
         document->setCompletionAssistProvider(providers.completionAssistProvider);
-    if (document->functionHintAssistProvider() == m_clientProviders.functionHintProvider)
+
+    if (document->functionHintAssistProvider() == m_clientProviders.functionHintProvider &&
+            providers.functionHintProvider)
         document->setFunctionHintAssistProvider(providers.functionHintProvider);
-    if (document->quickFixAssistProvider() == m_clientProviders.quickFixAssistProvider)
+
+    if (document->quickFixAssistProvider() == m_clientProviders.quickFixAssistProvider &&
+            providers.quickFixAssistProvider)
         document->setQuickFixAssistProvider(providers.quickFixAssistProvider);
 }
 
@@ -1169,9 +1264,18 @@ void Client::handleDiagnostics(const PublishDiagnosticsParams &params)
 
 void Client::handleSemanticHighlight(const SemanticHighlightingParams &params)
 {
-    const DocumentUri &uri = params.textDocument().uri();
+    DocumentUri uri;
+    LanguageClientValue<int> version;
+    auto textDocument = params.textDocument();
+
+    if (Utils::holds_alternative<VersionedTextDocumentIdentifier>(textDocument)) {
+        uri = Utils::get<VersionedTextDocumentIdentifier>(textDocument).uri();
+        version = Utils::get<VersionedTextDocumentIdentifier>(textDocument).version();
+    } else {
+        uri = Utils::get<TextDocumentIdentifier>(textDocument).uri();
+    }
+
     m_highlights[uri].clear();
-    const LanguageClientValue<int> &version = params.textDocument().version();
     TextEditor::TextDocument *doc = TextEditor::TextDocument::textDocumentForFilePath(
         uri.toFilePath());
 

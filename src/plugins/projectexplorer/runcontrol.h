@@ -45,7 +45,7 @@
 
 namespace Utils {
 class MacroExpander;
-class OutputFormatter;
+class OutputLineParser;
 } // Utils
 
 namespace ProjectExplorer {
@@ -222,7 +222,7 @@ public:
     Target *target() const;
     Project *project() const;
     Kit *kit() const;
-    Utils::MacroExpander *macroExpander() const;
+    const Utils::MacroExpander *macroExpander() const;
     ProjectConfigurationAspect *aspect(Core::Id id) const;
     template <typename T> T *aspect() const {
         return runConfiguration() ? runConfiguration()->aspect<T>() : nullptr;
@@ -238,7 +238,7 @@ public:
     Utils::FilePath targetFilePath() const;
     Utils::FilePath projectFilePath() const;
 
-    Utils::OutputFormatter *outputFormatter() const;
+    QList<Utils::OutputLineParser *> createOutputParsers() const;
     Core::Id runMode() const;
 
     const Runnable &runnable() const;
@@ -309,13 +309,14 @@ protected:
 public:
     virtual ~OutputFormatterFactory();
 
-    static Utils::OutputFormatter *createFormatter(Target *target);
+    static QList<Utils::OutputLineParser *> createFormatters(Target *target);
 
 protected:
-    void setFormatterCreator(const std::function<Utils::OutputFormatter *(Target *)> &creator);
+    using FormatterCreator = std::function<QList<Utils::OutputLineParser *>(Target *)>;
+    void setFormatterCreator(const FormatterCreator &creator);
 
 private:
-    std::function<Utils::OutputFormatter *(Target *)> m_creator;
+    FormatterCreator m_creator;
 };
 
 } // namespace ProjectExplorer

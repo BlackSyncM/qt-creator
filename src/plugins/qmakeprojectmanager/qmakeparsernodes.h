@@ -42,6 +42,8 @@
 
 #include <memory>
 
+namespace ProjectExplorer { class BuildConfiguration; }
+
 namespace Utils {
 class FilePath;
 class FileSystemWatcher;
@@ -50,7 +52,6 @@ class FileSystemWatcher;
 namespace QtSupport { class ProFileReader; }
 
 namespace QmakeProjectManager {
-class QmakeBuildConfiguration;
 class QmakeBuildSystem;
 class QmakeProFile;
 class QmakeProject;
@@ -320,7 +321,6 @@ public:
     }
 
     Utils::FilePath sourceDir() const;
-    Utils::FilePath buildDir(ProjectExplorer::BuildConfiguration *bc = nullptr) const;
 
     Utils::FilePaths generatedFiles(const Utils::FilePath &buildDirectory,
                                        const Utils::FilePath &sourceFile,

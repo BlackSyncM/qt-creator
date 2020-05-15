@@ -63,17 +63,15 @@ LinuxIccParser::LinuxIccParser() :
     m_pchInfoLine.setPattern(QLatin1String("^\".*\": (creating|using) precompiled header file \".*\"\n$"));
     m_pchInfoLine.setMinimal(true);
     QTC_CHECK(m_pchInfoLine.isValid());
-
-    appendOutputParser(new Internal::LldParser);
-    appendOutputParser(new LdParser);
 }
 
-void LinuxIccParser::stdError(const QString &line)
+OutputLineParser::Result LinuxIccParser::handleLine(const QString &line, OutputFormat type)
 {
-    if (m_pchInfoLine.indexIn(line) != -1) {
-        // totally ignore this line
-        return;
-    }
+    if (type != Utils::StdErrFormat)
+        return Status::NotHandled;
+
+    if (m_pchInfoLine.indexIn(line) != -1)
+        return Status::Done; // totally ignore this line
 
     if (m_expectFirstLine  && m_firstLine.indexIn(line) != -1) {
         // Clear out old task
@@ -83,40 +81,33 @@ void LinuxIccParser::stdError(const QString &line)
             type = Task::Error;
         else if (category == QLatin1String("warning"))
             type = Task::Warning;
-        m_temporary = CompileTask(type,
-                                  m_firstLine.cap(6).trimmed(),
-                                  Utils::FilePath::fromUserInput(m_firstLine.cap(1)),
-                                  m_firstLine.cap(2).toInt());
+        const FilePath filePath = absoluteFilePath(FilePath::fromUserInput(m_firstLine.cap(1)));
+        const int lineNo = m_firstLine.cap(2).toInt();
+        LinkSpecs linkSpecs;
+        addLinkSpecForAbsoluteFilePath(linkSpecs, filePath, lineNo, m_firstLine, 1);
+        m_temporary = CompileTask(type, m_firstLine.cap(6).trimmed(), filePath, lineNo);
 
         m_lines = 1;
         m_expectFirstLine = false;
-    } else if (!m_expectFirstLine && m_caretLine.indexIn(line) != -1) {
-        // Format the last line as code
-        QTextLayout::FormatRange fr;
-        fr.start = m_temporary.description.lastIndexOf(QLatin1Char('\n')) + 1;
-        fr.length = m_temporary.description.length() - fr.start;
-        fr.format.setFontItalic(true);
-        m_temporary.formats.append(fr);
-
-        QTextLayout::FormatRange fr2;
-        fr2.start = fr.start + line.indexOf(QLatin1Char('^')) - m_indent;
-        fr2.length = 1;
-        fr2.format.setFontWeight(QFont::Bold);
-        m_temporary.formats.append(fr2);
-    } else if (!m_expectFirstLine && line.trimmed().isEmpty()) { // last Line
-        m_expectFirstLine = true;
-        emit addTask(m_temporary, m_lines);
-        m_temporary = Task();
-    } else if (!m_expectFirstLine && m_continuationLines.indexIn(line) != -1) {
-        m_temporary.description.append(QLatin1Char('\n'));
-        m_indent = 0;
-        while (m_indent < line.length() && line.at(m_indent).isSpace())
-            m_indent++;
-        m_temporary.description.append(m_continuationLines.cap(1).trimmed());
-        ++m_lines;
-    } else {
-        IOutputParser::stdError(line);
+        return Status::InProgress;
     }
+    if (!m_expectFirstLine && m_caretLine.indexIn(line) != -1) {
+        // FIXME: m_temporary.details.append(line);
+        return Status::InProgress;
+    }
+    if (!m_expectFirstLine && line.trimmed().isEmpty()) { // last Line
+        m_expectFirstLine = true;
+        scheduleTask(m_temporary, m_lines);
+        m_temporary = Task();
+        return Status::Done;
+    }
+    if (!m_expectFirstLine && m_continuationLines.indexIn(line) != -1) {
+        m_temporary.details.append(m_continuationLines.cap(1).trimmed());
+        ++m_lines;
+        return Status::InProgress;
+    }
+    QTC_CHECK(m_temporary.isNull());
+    return Status::NotHandled;
 }
 
 Core::Id LinuxIccParser::id()
@@ -124,13 +115,20 @@ Core::Id LinuxIccParser::id()
     return Core::Id("ProjectExplorer.OutputParser.Icc");
 }
 
-void LinuxIccParser::doFlush()
+QList<OutputLineParser *> LinuxIccParser::iccParserSuite()
+{
+    return {new LinuxIccParser, new Internal::LldParser, new LdParser};
+}
+
+void LinuxIccParser::flush()
 {
     if (m_temporary.isNull())
         return;
+
+    setMonospacedDetailsFormat(m_temporary);
     Task t = m_temporary;
     m_temporary.clear();
-    emit addTask(t, m_lines, 1);
+    scheduleTask(t, m_lines, 1);
 }
 
 #ifdef WITH_TESTS
@@ -227,14 +225,14 @@ void ProjectExplorerPlugin::testLinuxIccOutputParsers_data()
             << (Tasks()
                 << CompileTask(Task::Unknown,
                                "Note: No relevant classes found. No output generated.",
-                               FilePath::fromUserInput("/home/qtwebkithelpviewer.h"), 0))
+                               FilePath::fromUserInput("/home/qtwebkithelpviewer.h"), -1))
             << QString();
 }
 
 void ProjectExplorerPlugin::testLinuxIccOutputParsers()
 {
     OutputParserTester testbench;
-    testbench.appendOutputParser(new LinuxIccParser);
+    testbench.setLineParsers(LinuxIccParser::iccParserSuite());
     QFETCH(QString, input);
     QFETCH(OutputParserTester::Channel, inputChannel);
     QFETCH(Tasks, tasks);

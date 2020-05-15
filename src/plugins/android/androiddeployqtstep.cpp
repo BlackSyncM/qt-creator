@@ -178,7 +178,7 @@ bool AndroidDeployQtStep::init()
 
     RunConfiguration *rc = target()->activeRunConfiguration();
     QTC_ASSERT(rc, return false);
-    ProjectExplorer::BuildConfiguration *bc = buildConfiguration();
+    BuildConfiguration *bc = target()->activeBuildConfiguration();
     QTC_ASSERT(bc, return false);
 
     auto androidBuildApkStep = bc->buildSteps()->firstOfType<AndroidBuildApkStep>();
@@ -222,7 +222,8 @@ bool AndroidDeployQtStep::init()
     m_useAndroiddeployqt = version->qtVersion() >= QtSupport::QtVersionNumber(5, 4, 0);
 
     if (m_useAndroiddeployqt) {
-        const ProjectNode *node = target()->project()->findNodeForBuildKey(rc->buildKey());
+        const QString buildKey = target()->activeBuildKey();
+        const ProjectNode *node = target()->project()->findNodeForBuildKey(buildKey);
         if (!node)
             return false;
         m_apkPath = Utils::FilePath::fromString(node->data(Constants::AndroidApk).toString());
@@ -469,7 +470,7 @@ bool AndroidDeployQtStep::runImpl()
 void AndroidDeployQtStep::gatherFilesToPull()
 {
     m_filesToPull.clear();
-    ProjectExplorer::BuildConfiguration *bc = buildConfiguration();
+    BuildConfiguration *bc = target()->activeBuildConfiguration();
     QString buildDir = bc ? bc->buildDirectory().toString() : QString();
     if (bc && !buildDir.endsWith("/")) {
         buildDir += "/";

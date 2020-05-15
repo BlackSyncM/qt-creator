@@ -47,6 +47,30 @@ namespace Internal {
     class MoveController;
 }
 
+enum ConnectionType
+{
+    Default = 0,
+    Bezier
+};
+
+class ConnectionStyle
+{
+public:
+    qreal width;
+    qreal adjustedWidth;
+    QColor color;
+    bool dash;
+    int outOffset;
+    int inOffset;
+    int breakOffset;
+    int radius;
+    int bezier;
+    ConnectionType type;
+    qreal labelOffset;
+    qreal labelPosition;
+    bool labelFlipSide;
+};
+
 class QMLDESIGNERCORE_EXPORT FormEditorItem : public QGraphicsItem
 {
     friend class QmlDesigner::FormEditorScene;

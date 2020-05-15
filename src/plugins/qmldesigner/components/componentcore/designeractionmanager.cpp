@@ -358,6 +358,16 @@ bool isFlowTransitionItem(const SelectionContext &context)
            && QmlFlowItemNode::isFlowTransition(context.currentSingleSelectedNode());
 }
 
+bool isFlowTransitionItemWithEffect(const SelectionContext &context)
+{
+    if (!isFlowTransitionItem(context))
+        return false;
+
+    ModelNode node = context.currentSingleSelectedNode();
+
+    return node.hasNodeProperty("effect");
+}
+
 bool isFlowActionItemItem(const SelectionContext &context)
 {
     const ModelNode selectedNode = context.currentSingleSelectedNode();
@@ -648,6 +658,12 @@ bool positionOptionVisible(const SelectionContext &context)
             || isPositioner(context);
 }
 
+bool studioComponentsAvailable(const SelectionContext &context)
+{
+    const Import import = Import::createLibraryImport("QtQuick.Studio.Components", "1.0");
+    return context.view()->model()->isImportPossible(import, true, true);
+}
+
 bool singleSelectedAndUiFile(const SelectionContext &context)
 {
     if (!singleSelection(context))
@@ -860,6 +876,13 @@ void DesignerActionManager::createDefaultDesignerActions()
                           &layoutOptionVisible));
 
     addDesignerAction(new ActionGroup(
+                          groupCategoryDisplayName,
+                          groupCategory,
+                          priorityGroupCategory,
+                          &positionOptionVisible,
+                          &studioComponentsAvailable));
+
+    addDesignerAction(new ActionGroup(
         flowCategoryDisplayName,
         flowCategory,
         priorityFlowCategory,
@@ -906,19 +929,23 @@ void DesignerActionManager::createDefaultDesignerActions()
         priorityFlowCategory));
 
 
-    const QList<TypeName> types = {"FlowActionArea",
-                                   "FlowFadeEffect",
-                                   "FlowPushRightEffect",
-                                   "FlowPushLeftEffect",
-                                   "FlowPushUpEffect",
-                                   "FlowSlideDownEffect",
-                                   "FlowSlideLeftEffect",
-                                   "FlowSlideRightEffect",
-                                   "FlowSlideUpEffect",
+    const QList<TypeName> transitionTypes = {"FlowFadeEffect",
+                                   "FlowPushEffect",
+                                   "FlowMoveEffect",
                                    "None"};
 
-    for (const TypeName &typeName : types)
+    for (const TypeName &typeName : transitionTypes)
         addTransitionEffectAction(typeName);
+
+    addDesignerAction(new ModelNodeContextMenuAction(
+        selectFlowEffectCommandId,
+        selectEffectDisplayName,
+        {},
+        flowCategory,
+        {},
+        priorityFlowCategory,
+        &selectFlowEffect,
+        &isFlowTransitionItemWithEffect));
 
     addDesignerAction(new ActionGroup(
                           stackedContainerCategoryDisplayName,
@@ -993,6 +1020,18 @@ void DesignerActionManager::createDefaultDesignerActions()
                           &removeLayout,
                           &isLayout,
                           &isLayout));
+
+    addDesignerAction(new ModelNodeContextMenuAction(
+                          addToGroupItemCommandId,
+                          addToGroupItemDisplayName,
+                          {},
+                          groupCategory,
+                          QKeySequence(),
+                          110,
+                          &addToGroupItem,
+                          &selectionCanBeLayouted,
+                          &selectionCanBeLayouted));
+
 
     addDesignerAction(new ModelNodeFormEditorAction(
                           addItemToStackedContainerCommandId,
@@ -1212,6 +1251,10 @@ void DesignerActionManager::addTransitionEffectAction(const TypeName &typeName)
 DesignerActionToolBar::DesignerActionToolBar(QWidget *parentWidget) : Utils::StyledBar(parentWidget),
     m_toolBar(new QToolBar("ActionToolBar", this))
 {
+    QWidget* empty = new QWidget();
+    empty->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Preferred);
+    m_toolBar->addWidget(empty);
+
     m_toolBar->setContentsMargins(0, 0, 0, 0);
     m_toolBar->setFloatable(true);
     m_toolBar->setMovable(true);

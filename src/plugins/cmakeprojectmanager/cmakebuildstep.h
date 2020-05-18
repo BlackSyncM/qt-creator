@@ -27,9 +27,22 @@
 
 #include <projectexplorer/abstractprocessstep.h>
 
-namespace Utils { class CommandLine; }
+#include <QRegExp>
 
-namespace ProjectExplorer { class RunConfiguration; }
+QT_BEGIN_NAMESPACE
+class QLineEdit;
+class QListWidget;
+class QListWidgetItem;
+class QRadioButton;
+QT_END_NAMESPACE
+
+namespace Utils {
+class CommandLine;
+} // Utils
+
+namespace ProjectExplorer {
+class RunConfiguration;
+} // ProjectManager
 
 namespace CMakeProjectManager {
 namespace Internal {
@@ -83,7 +96,6 @@ private:
     void ctor(ProjectExplorer::BuildStepList *bsl);
 
     bool init() override;
-    void setupOutputFormatter(Utils::OutputFormatter *formatter) override;
     void doRun() override;
     ProjectExplorer::BuildStepConfigWidget *createConfigWidget() override;
 
@@ -103,6 +115,26 @@ private:
     QString m_toolArguments;
     bool m_useNinja = false;
     bool m_waiting = false;
+};
+
+class CMakeBuildStepConfigWidget : public ProjectExplorer::BuildStepConfigWidget
+{
+    Q_OBJECT
+public:
+    CMakeBuildStepConfigWidget(CMakeBuildStep *buildStep);
+
+private:
+    void itemChanged(QListWidgetItem*);
+    void toolArgumentsEdited();
+    void updateDetails();
+    void buildTargetsChanged();
+    void updateBuildTarget();
+
+    QRadioButton *itemWidget(QListWidgetItem *item);
+
+    CMakeBuildStep *m_buildStep;
+    QLineEdit *m_toolArguments;
+    QListWidget *m_buildTargetsList;
 };
 
 class CMakeBuildStepFactory : public ProjectExplorer::BuildStepFactory

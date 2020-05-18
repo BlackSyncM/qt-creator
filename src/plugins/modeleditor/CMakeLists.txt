@@ -32,4 +32,5 @@ add_qtc_plugin(ModelEditor
   EXPLICIT_MOC
     actionhandler.h
     modeleditor.h
+    modeleditorfactory.h
 )

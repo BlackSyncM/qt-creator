@@ -103,7 +103,7 @@ using namespace std::placeholders;
 namespace Git {
 namespace Internal {
 
-using GitClientMemberFunc = void (GitClient::*)(const QString &) const;
+using GitClientMemberFunc = void (GitClient::*)(const QString &);
 
 class GitTopicCache : public Core::IVersionControl::TopicCache
 {
@@ -303,7 +303,6 @@ public:
     void gitkForCurrentFile();
     void gitkForCurrentFolder();
     void gitGui();
-    void gitBash();
     void cleanProject();
     void cleanRepository();
     void updateSubmodules();
@@ -963,14 +962,6 @@ GitPluginPrivate::GitPluginPrivate()
             = createRepositoryAction(gitToolsMenu, tr("Merge Tool"), "Git.MergeTool",
                                      context, true, std::bind(&GitPluginPrivate::startMergeTool, this));
 
-    // --------------
-    if (Utils::HostOsInfo::isWindowsHost()) {
-        gitToolsMenu->addSeparator(context);
-
-        createRepositoryAction(gitToolsMenu, tr("Git Bash"), "Git.GitBash",
-                               context, true, std::bind(&GitPluginPrivate::gitBash, this));
-    }
-
     /* \"Git Tools" menu */
 
     // --------------
@@ -1210,9 +1201,7 @@ void GitPluginPrivate::startChangeRelatedAction(const Id &id)
     if (dialog.command() == Show) {
         m_gitClient.show(workingDirectory, change);
         return;
-    }
-
-    if (dialog.command() == Archive) {
+    } else if (dialog.command() == Archive) {
         m_gitClient.archive(workingDirectory, change);
         return;
     }
@@ -1291,13 +1280,6 @@ void GitPluginPrivate::gitGui()
     const VcsBasePluginState state = currentState();
     QTC_ASSERT(state.hasTopLevel(), return);
     m_gitClient.launchGitGui(state.topLevel());
-}
-
-void GitPluginPrivate::gitBash()
-{
-    const VcsBasePluginState state = currentState();
-    QTC_ASSERT(state.hasTopLevel(), return);
-    m_gitClient.launchGitBash(state.topLevel());
 }
 
 void GitPluginPrivate::startCommit(CommitType commitType)

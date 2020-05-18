@@ -31,12 +31,12 @@
 #include "cmakespecificsettings.h"
 #include "cmaketoolmanager.h"
 
+#include <projectexplorer/kit.h>
 #include <projectexplorer/kitinformation.h>
-#include <projectexplorer/project.h>
+#include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/target.h>
-#include <projectexplorer/toolchain.h>
 
-#include <utils/qtcassert.h>
+#include <utils/hostosinfo.h>
 
 using namespace ProjectExplorer;
 
@@ -47,15 +47,13 @@ BuildDirParameters::BuildDirParameters() = default;
 
 BuildDirParameters::BuildDirParameters(CMakeBuildConfiguration *bc)
 {
-    QTC_ASSERT(bc, return );
+    initialized = bc != nullptr;
 
-    const Target *t = bc->target();
-    const Kit *k = t->kit();
-    const Project *p = t->project();
+    const Kit *k = bc->target()->kit();
 
-    projectName = p->displayName();
+    projectName = bc->target()->project()->displayName();
 
-    sourceDirectory = p->projectDirectory();
+    sourceDirectory = bc->target()->project()->projectDirectory();
     buildDirectory = bc->buildDirectory();
 
     environment = bc->environment();
@@ -71,12 +69,13 @@ BuildDirParameters::BuildDirParameters(CMakeBuildConfiguration *bc)
 
     cmakeToolId = CMakeKitAspect::cmakeToolId(k);
 
-    auto tc = ToolChainKitAspect::cxxToolChain(k);
+    auto tc = ToolChainKitAspect::toolChain(k, Constants::CXX_LANGUAGE_ID);
     if (tc)
         cxxToolChainId = tc->id();
-    tc = ToolChainKitAspect::cToolChain(k);
+    tc = ToolChainKitAspect::toolChain(k, Constants::C_LANGUAGE_ID);
     if (tc)
         cToolChainId = tc->id();
+    sysRoot = SysRootKitAspect::sysRoot(k);
 
     expander = k->macroExpander();
 
@@ -89,10 +88,7 @@ BuildDirParameters::BuildDirParameters(CMakeBuildConfiguration *bc)
     generatorArguments = CMakeGeneratorKitAspect::generatorArguments(k);
 }
 
-bool BuildDirParameters::isValid() const
-{
-    return cmakeTool();
-}
+bool BuildDirParameters::isValid() const { return initialized && cmakeTool(); }
 
 CMakeTool *BuildDirParameters::cmakeTool() const
 {

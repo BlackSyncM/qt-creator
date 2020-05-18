@@ -49,6 +49,8 @@ namespace Internal {
 
 class GccToolChainFactory : public ToolChainFactory
 {
+    Q_OBJECT
+
 public:
     GccToolChainFactory();
 
@@ -130,6 +132,8 @@ private:
 
 class ClangToolChainFactory : public GccToolChainFactory
 {
+    Q_OBJECT
+
 public:
     ClangToolChainFactory();
 
@@ -143,6 +147,8 @@ public:
 
 class MingwToolChainFactory : public GccToolChainFactory
 {
+    Q_OBJECT
+
 public:
     MingwToolChainFactory();
 
@@ -156,6 +162,8 @@ public:
 
 class LinuxIccToolChainFactory : public GccToolChainFactory
 {
+    Q_OBJECT
+
 public:
     LinuxIccToolChainFactory();
 

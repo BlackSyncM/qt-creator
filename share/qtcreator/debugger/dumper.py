@@ -1089,10 +1089,6 @@ class DumperBase():
         return '_ZN%sE' % ''.join(map(lambda x: '%d%s' % (len(x), x),
                                       typeName.split('::')))
 
-    def arrayItemCountFromTypeName(self, typeName, fallbackMax=1):
-        itemCount = typeName[typeName.find('[') + 1:typeName.find(']')]
-        return int(itemCount) if itemCount else fallbackMax
-
     def putCStyleArray(self, value):
         arrayType = value.type.unqualified()
         innerType = arrayType.ltarget
@@ -1111,7 +1107,10 @@ class DumperBase():
             # This should not happen. But it does, see QTCREATORBUG-14755.
             # GDB/GCC produce sizeof == 0 for QProcess arr[3]
             # And in the Nim string dumper.
-            itemCount = self.arrayItemCountFromTypeName(value.type.name, 100)
+            s = value.type.name
+            itemCount = s[s.find('[') + 1:s.find(']')]
+            if not itemCount:
+                itemCount = '100'
             arrayByteSize = int(itemCount) * innerType.size()
 
         n = arrayByteSize // innerType.size()

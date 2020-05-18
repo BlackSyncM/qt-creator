@@ -60,8 +60,6 @@ public:
     void setCurrentDiffFileIndex(int diffFileIndex);
 
     void saveState();
-
-    using TextEditor::TextEditorWidget::restoreState;
     void restoreState();
 
     void clear(const QString &message = QString());

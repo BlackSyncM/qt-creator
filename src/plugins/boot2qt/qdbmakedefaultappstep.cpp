@@ -25,27 +25,14 @@
 
 #include "qdbmakedefaultappstep.h"
 
-#include "qdbconstants.h"
 #include "qdbmakedefaultappservice.h"
 
 #include <projectexplorer/runconfigurationaspects.h>
-
-#include <remotelinux/abstractremotelinuxdeploystep.h>
 
 using namespace ProjectExplorer;
 
 namespace Qdb {
 namespace Internal {
-
-class QdbMakeDefaultAppStep final : public RemoteLinux::AbstractRemoteLinuxDeployStep
-{
-    Q_DECLARE_TR_FUNCTIONS(Qdb::Internal::QdbMakeDefaultAppStep)
-
-public:
-    QdbMakeDefaultAppStep(BuildStepList *bsl, Core::Id id);
-
-    static QString stepDisplayName() { return tr("Change default application"); }
-};
 
 QdbMakeDefaultAppStep::QdbMakeDefaultAppStep(BuildStepList *bsl, Core::Id id)
     : AbstractRemoteLinuxDeployStep(bsl, id)
@@ -65,14 +52,14 @@ QdbMakeDefaultAppStep::QdbMakeDefaultAppStep(BuildStepList *bsl, Core::Id id)
     });
 }
 
-// QdbMakeDefaultAppStepFactory
-
-QdbMakeDefaultAppStepFactory::QdbMakeDefaultAppStepFactory()
+Core::Id QdbMakeDefaultAppStep::stepId()
 {
-    registerStep<QdbMakeDefaultAppStep>(Constants::QdbMakeDefaultAppStepId);
-    setDisplayName(QdbMakeDefaultAppStep::stepDisplayName());
-    setSupportedDeviceType(Qdb::Constants::QdbLinuxOsType);
-    setSupportedStepList(ProjectExplorer::Constants::BUILDSTEPS_DEPLOY);
+    return "Qdb.MakeDefaultAppStep";
+}
+
+QString QdbMakeDefaultAppStep::stepDisplayName()
+{
+    return QStringLiteral("Change default application");
 }
 
 } // namespace Internal

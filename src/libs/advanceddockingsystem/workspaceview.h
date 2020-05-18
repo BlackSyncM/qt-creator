@@ -60,9 +60,6 @@ public:
     void resetCurrentWorkspace();
     void switchToCurrentWorkspace();
 
-    void importWorkspace();
-    void exportCurrentWorkspace();
-
     QString currentWorkspace();
     WorkspaceModel *workspaceModel();
     void selectActiveWorkspace();

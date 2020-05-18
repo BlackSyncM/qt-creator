@@ -33,7 +33,6 @@
 #include "compileoutputwindow.h"
 #include "configtaskhandler.h"
 #include "customexecutablerunconfiguration.h"
-#include "customparserssettingspage.h"
 #include "customwizard/customwizard.h"
 #include "deployablefile.h"
 #include "deployconfiguration.h"
@@ -157,7 +156,6 @@
 #include <QInputDialog>
 #include <QMenu>
 #include <QMessageBox>
-#include <QPair>
 #include <QThreadPool>
 #include <QTimer>
 
@@ -283,9 +281,6 @@ const char LOW_BUILD_PRIORITY_SETTINGS_KEY[] = "ProjectExplorer/Settings/LowBuil
 const char SEPARATE_DEBUG_INFO_SETTINGS_KEY[] = "ProjectExplorer/Settings/SeparateDebugInfo";
 const char QML_DEBUGGING_SETTINGS_KEY[] = "ProjectExplorer/Settings/QmlDebugging";
 const char QT_QUICK_COMPILER_SETTINGS_KEY[] = "ProjectExplorer/Settings/QtQuickCompiler";
-
-const char CUSTOM_PARSER_COUNT_KEY[] = "ProjectExplorer/Settings/CustomParserCount";
-const char CUSTOM_PARSER_PREFIX_KEY[] = "ProjectExplorer/Settings/CustomParser";
 
 } // namespace Constants
 
@@ -524,7 +519,6 @@ public:
     QAction *m_openFileAction;
     QAction *m_projectTreeCollapseAllAction;
     QAction *m_projectTreeExpandAllAction;
-    QAction *m_projectTreeExpandNodeAction = nullptr;
     Utils::ParameterAction *m_closeProjectFilesActionFileMenu;
     Utils::ParameterAction *m_closeProjectFilesActionContextMenu;
     QAction *m_searchOnFileSystem;
@@ -555,7 +549,6 @@ public:
     MiniProjectTargetSelector * m_targetSelector;
     ProjectExplorerSettings m_projectExplorerSettings;
     BuildPropertiesSettings m_buildPropertiesSettings;
-    QList<Internal::CustomParserSettings> m_customParsers;
     bool m_shouldHaveRunConfiguration = false;
     bool m_shuttingDown = false;
     Core::Id m_runMode = Constants::NO_RUN_MODE;
@@ -636,7 +629,6 @@ public:
     CompileOutputSettingsPage m_compileOutputSettingsPage;
     DeviceSettingsPage m_deviceSettingsPage;
     SshSettingsPage m_sshSettingsPage;
-    CustomParsersSettingsPage m_customParsersSettingsPage;
 
     ProjectTreeWidgetFactory m_projectTreeFactory;
     FolderNavigationWidgetFactory m_folderNavigationWidgetFactory;
@@ -760,8 +752,6 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
     ProjectTree *tree = &dd->m_projectTree;
     connect(tree, &ProjectTree::currentProjectChanged,
             dd, &ProjectExplorerPluginPrivate::updateContextMenuActions);
-    connect(tree, &ProjectTree::nodeActionsChanged,
-            dd, &ProjectExplorerPluginPrivate::updateContextMenuActions);
     connect(tree, &ProjectTree::currentNodeChanged,
             dd, &ProjectExplorerPluginPrivate::updateContextMenuActions);
     connect(tree, &ProjectTree::currentProjectChanged,
@@ -822,8 +812,6 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
         return new ProjectEnvironmentWidget(project);
     });
     ProjectPanelFactory::registerFactory(panelFactory);
-
-    RunConfiguration::registerAspect<CustomParsersAspect>();
 
     // context menus
     ActionContainer *msessionContextMenu =
@@ -1373,7 +1361,7 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
     dd->m_removeFileAction = new QAction(this);
     cmd = ActionManager::registerAction(dd->m_removeFileAction, Constants::REMOVEFILE,
                        projectTreeContext);
-    cmd->setDefaultKeySequences({QKeySequence::Delete, QKeySequence::Backspace});
+    cmd->setDefaultKeySequence(QKeySequence::Delete);
     mfileContextMenu->addAction(cmd, Constants::G_FILE_OTHER);
 
     // duplicate file action
@@ -1392,7 +1380,7 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
     dd->m_deleteFileAction = new QAction(tr("Delete File..."), this);
     cmd = ActionManager::registerAction(dd->m_deleteFileAction, Constants::DELETEFILE,
                              projectTreeContext);
-    cmd->setDefaultKeySequences({QKeySequence::Delete, QKeySequence::Backspace});
+    cmd->setDefaultKeySequence(QKeySequence::Delete);
     mfileContextMenu->addAction(cmd, Constants::G_FILE_OTHER);
 
     // renamefile action
@@ -1424,13 +1412,6 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
 
     // Collapse & Expand.
     const Id treeGroup = Constants::G_PROJECT_TREE;
-
-    dd->m_projectTreeExpandNodeAction = new QAction(tr("Expand"), this);
-    connect(dd->m_projectTreeExpandNodeAction, &QAction::triggered,
-            ProjectTree::instance(), &ProjectTree::expandCurrentNodeRecursively);
-    Command * const expandNodeCmd = ActionManager::registerAction(
-                dd->m_projectTreeExpandNodeAction, "ProjectExplorer.ExpandNode",
-                projectTreeContext);
     dd->m_projectTreeCollapseAllAction = new QAction(tr("Collapse All"), this);
     Command * const collapseCmd = ActionManager::registerAction(
                 dd->m_projectTreeCollapseAllAction, Constants::PROJECTTREE_COLLAPSE_ALL,
@@ -1442,7 +1423,6 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
     for (Core::ActionContainer * const ac : {mfileContextMenu, msubProjectContextMenu,
          mfolderContextMenu, mprojectContextMenu, msessionContextMenu}) {
         ac->addSeparator(treeGroup);
-        ac->addAction(expandNodeCmd, treeGroup);
         ac->addAction(collapseCmd, treeGroup);
         ac->addAction(expandCmd, treeGroup);
     }
@@ -1531,7 +1511,7 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
         tmp = Utils::HostOsInfo::isWindowsHost() ? 1 : 0;
     dd->m_projectExplorerSettings.stopBeforeBuild = StopBeforeBuild(tmp);
     dd->m_projectExplorerSettings.terminalMode = static_cast<TerminalMode>(s->value(
-        Constants::TERMINAL_MODE_SETTINGS_KEY, int(TerminalMode::Off)).toInt());
+        Constants::TERMINAL_MODE_SETTINGS_KEY, int(TerminalMode::Smart)).toInt());
     dd->m_projectExplorerSettings.closeSourceFilesWithProject
             = s->value(Constants::CLOSE_FILES_WITH_PROJECT_SETTINGS_KEY, true).toBool();
     dd->m_projectExplorerSettings.clearIssuesOnRebuild
@@ -1554,14 +1534,6 @@ bool ProjectExplorerPlugin::initialize(const QStringList &arguments, QString *er
             = loadTriStateValue(Constants::QML_DEBUGGING_SETTINGS_KEY);
     dd->m_buildPropertiesSettings.qtQuickCompiler
             = loadTriStateValue(Constants::QT_QUICK_COMPILER_SETTINGS_KEY);
-
-    const int customParserCount = s->value(Constants::CUSTOM_PARSER_COUNT_KEY).toInt();
-    for (int i = 0; i < customParserCount; ++i) {
-        CustomParserSettings settings;
-        settings.fromMap(s->value(Constants::CUSTOM_PARSER_PREFIX_KEY
-                                  + QString::number(i)).toMap());
-        dd->m_customParsers << settings;
-    }
 
     auto buildManager = new BuildManager(this, dd->m_cancelBuildAction);
     connect(buildManager, &BuildManager::buildStateChanged,
@@ -2197,12 +2169,6 @@ void ProjectExplorerPluginPrivate::savePersistentSettings()
                 dd->m_buildPropertiesSettings.qmlDebugging.toVariant());
     s->setValue(Constants::QT_QUICK_COMPILER_SETTINGS_KEY,
                 dd->m_buildPropertiesSettings.qtQuickCompiler.toVariant());
-
-    s->setValue(Constants::CUSTOM_PARSER_COUNT_KEY, dd->m_customParsers.count());
-    for (int i = 0; i < dd->m_customParsers.count(); ++i) {
-        s->setValue(Constants::CUSTOM_PARSER_PREFIX_KEY + QString::number(i),
-                    dd->m_customParsers.at(i).toMap());
-    }
 }
 
 void ProjectExplorerPlugin::openProjectWelcomePage(const QString &fileName)
@@ -2383,11 +2349,6 @@ QStringList ProjectExplorerPlugin::projectFileGlobs()
 QThreadPool *ProjectExplorerPlugin::sharedThreadPool()
 {
     return &(dd->m_threadPool);
-}
-
-MiniProjectTargetSelector *ProjectExplorerPlugin::targetSelector()
-{
-    return dd->m_targetSelector;
 }
 
 /*!
@@ -2733,6 +2694,17 @@ ProjectExplorerPluginPrivate::ProjectExplorerPluginPrivate()
     m_allProjectDirectoriesFilter.setIncludedByDefault(false); // but not included in default
     m_allProjectDirectoriesFilter.setFilters({});
     m_allProjectDirectoriesFilter.setIsCustomFilter(false);
+}
+
+QString ProjectExplorerPlugin::displayNameForStepId(Id stepId)
+{
+    if (stepId == Constants::BUILDSTEPS_CLEAN)
+        return tr("Clean");
+    if (stepId == Constants::BUILDSTEPS_BUILD)
+        return tr("Build", "Build step");
+    if (stepId == Constants::BUILDSTEPS_DEPLOY)
+        return tr("Deploy");
+    return tr("Build", "Build step");
 }
 
 void ProjectExplorerPluginPrivate::runProjectContextMenu()
@@ -3264,28 +3236,20 @@ void ProjectExplorerPluginPrivate::updateContextMenuActions()
             return currentNode->supportsAction(action, currentNode);
         };
 
-        bool canEditProject = true;
-        if (project && project->activeTarget()) {
-            const BuildSystem * const bs = project->activeTarget()->buildSystem();
-            if (bs->isParsing() || bs->isWaitingForParse())
-                canEditProject = false;
-        }
         if (currentNode->asFolderNode()) {
             // Also handles ProjectNode
-            m_addNewFileAction->setEnabled(canEditProject && supports(AddNewFile)
+            m_addNewFileAction->setEnabled(supports(AddNewFile)
                                               && !ICore::isNewItemDialogRunning());
-            m_addNewSubprojectAction->setEnabled(canEditProject && currentNode->isProjectNodeType()
+            m_addNewSubprojectAction->setEnabled(currentNode->isProjectNodeType()
                                                     && supports(AddSubProject)
                                                     && !ICore::isNewItemDialogRunning());
-            m_addExistingProjectsAction->setEnabled(canEditProject
-                                                    && currentNode->isProjectNodeType()
+            m_addExistingProjectsAction->setEnabled(currentNode->isProjectNodeType()
                                                     && supports(AddExistingProject));
-            m_removeProjectAction->setEnabled(canEditProject && currentNode->isProjectNodeType()
+            m_removeProjectAction->setEnabled(currentNode->isProjectNodeType()
                                                     && supports(RemoveSubProject));
-            m_addExistingFilesAction->setEnabled(canEditProject && supports(AddExistingFile));
-            m_addExistingDirectoryAction->setEnabled(canEditProject
-                                                     && supports(AddExistingDirectory));
-            m_renameFileAction->setEnabled(canEditProject && supports(Rename));
+            m_addExistingFilesAction->setEnabled(supports(AddExistingFile));
+            m_addExistingDirectoryAction->setEnabled(supports(AddExistingDirectory));
+            m_renameFileAction->setEnabled(supports(Rename));
         } else if (auto fileNode = currentNode->asFileNode()) {
             // Enable and show remove / delete in magic ways:
             // If both are disabled show Remove
@@ -3293,20 +3257,20 @@ void ProjectExplorerPluginPrivate::updateContextMenuActions()
             // If only removeFile is enabled only show it
             // If only deleteFile is enable only show it
             bool isTypeProject = fileNode->fileType() == FileType::Project;
-            bool enableRemove = canEditProject && !isTypeProject && supports(RemoveFile);
+            bool enableRemove = !isTypeProject && supports(RemoveFile);
             m_removeFileAction->setEnabled(enableRemove);
-            bool enableDelete = canEditProject && !isTypeProject && supports(EraseFile);
+            bool enableDelete = !isTypeProject && supports(EraseFile);
             m_deleteFileAction->setEnabled(enableDelete);
             m_deleteFileAction->setVisible(enableDelete);
 
             m_removeFileAction->setVisible(!enableDelete || enableRemove);
-            m_renameFileAction->setEnabled(canEditProject && !isTypeProject && supports(Rename));
+            m_renameFileAction->setEnabled(!isTypeProject && supports(Rename));
             const bool currentNodeIsTextFile = isTextFile(
                         currentNode->filePath().toString());
             m_diffFileAction->setEnabled(DiffService::instance()
                         && currentNodeIsTextFile && TextEditor::TextDocument::currentTextDocument());
 
-            const bool canDuplicate = canEditProject && supports(AddNewFile)
+            const bool canDuplicate = supports(AddNewFile)
                     && currentNode->asFileNode()->fileType() != FileType::Project;
             m_duplicateFileAction->setVisible(canDuplicate);
             m_duplicateFileAction->setEnabled(canDuplicate);
@@ -3616,54 +3580,38 @@ void ProjectExplorerPluginPrivate::removeFile()
     QTC_ASSERT(currentNode && currentNode->asFileNode(), return);
 
     const Utils::FilePath filePath = currentNode->filePath();
-    using NodeAndPath = QPair<const Node *, Utils::FilePath>;
-    QList<NodeAndPath> filesToRemove{qMakePair(currentNode, currentNode->filePath())};
-    QList<NodeAndPath> siblings;
-    for (const Node * const n : ProjectTree::siblingsWithSameBaseName(currentNode))
-        siblings << qMakePair(n, n->filePath());
-
     Utils::RemoveFileDialog removeFileDialog(filePath.toString(), ICore::mainWindow());
-    if (removeFileDialog.exec() != QDialog::Accepted)
-        return;
 
-    const bool deleteFile = removeFileDialog.isDeleteFileChecked();
+    if (removeFileDialog.exec() == QDialog::Accepted) {
+        const bool deleteFile = removeFileDialog.isDeleteFileChecked();
 
-    const QMessageBox::StandardButton reply = QMessageBox::question(
-                Core::ICore::mainWindow(), tr("Remove More Files?"),
-                tr("Would you like to remove these files as well?\n    %1")
-                .arg(Utils::transform<QStringList>(siblings, [](const NodeAndPath &np) {
-        return np.second.toFileInfo().fileName();
-    }).join("\n    ")));
-    if (reply == QMessageBox::Yes)
-        filesToRemove << siblings;
-
-    for (const NodeAndPath &file : filesToRemove) {
-        // Nodes can become invalid if the project was re-parsed while the dialog was open
-        if (!ProjectTree::hasNode(file.first)) {
+        // Re-read the current node, in case the project is re-parsed while the dialog is open
+        if (!ProjectTree::hasNode(currentNode)) {
             QMessageBox::warning(ICore::mainWindow(), tr("Removing File Failed"),
-                                 tr("File \"%1\" was not removed, because the project has changed "
+                                 tr("File %1 was not removed, because the project has changed "
                                     "in the meantime.\nPlease try again.")
-                                 .arg(file.second.toUserOutput()));
+                                 .arg(filePath.toUserOutput()));
             return;
         }
 
         // remove from project
-        FolderNode *folderNode = file.first->asFileNode()->parentFolderNode();
+        FolderNode *folderNode = currentNode->asFileNode()->parentFolderNode();
         QTC_ASSERT(folderNode, return);
 
         const RemovedFilesFromProject status
-                = folderNode->removeFiles(QStringList(file.second.toString()));
+                = folderNode->removeFiles(QStringList(filePath.toString()));
         const bool success = status == RemovedFilesFromProject::Ok
                 || (status == RemovedFilesFromProject::Wildcard
                     && removeFileDialog.isDeleteFileChecked());
         if (!success) {
-            TaskHub::addTask(BuildSystemTask(Task::Error,
-                    tr("Could not remove file \"%1\" from project \"%2\".")
-                        .arg(filePath.toUserOutput(), folderNode->managingProject()->displayName()),
-                    folderNode->managingProject()->filePath()));
+            QMessageBox::warning(ICore::mainWindow(), tr("Removing File Failed"),
+                                 tr("Could not remove file %1 from project %2.")
+                                 .arg(filePath.toUserOutput())
+                                 .arg(folderNode->managingProject()->displayName()));
             if (!deleteFile)
-                continue;
+                return;
         }
+
         FileChangeBlocker changeGuard(filePath.toString());
         FileUtils::removeFile(filePath.toString(), deleteFile);
     }
@@ -3889,19 +3837,6 @@ const BuildPropertiesSettings &ProjectExplorerPlugin::buildPropertiesSettings()
 void ProjectExplorerPlugin::showQtSettings()
 {
     dd->m_buildPropertiesSettings.showQtSettings = true;
-}
-
-void ProjectExplorerPlugin::setCustomParsers(const QList<CustomParserSettings> &settings)
-{
-    if (dd->m_customParsers != settings) {
-        dd->m_customParsers = settings;
-        emit m_instance->customParsersChanged();
-    }
-}
-
-const QList<CustomParserSettings> ProjectExplorerPlugin::customParsers()
-{
-    return dd->m_customParsers;
 }
 
 QStringList ProjectExplorerPlugin::projectFilePatterns()

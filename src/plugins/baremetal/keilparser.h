@@ -33,7 +33,7 @@ namespace Internal {
 
 // KeilParser
 
-class KeilParser final : public ProjectExplorer::OutputTaskParser
+class KeilParser final : public ProjectExplorer::IOutputParser
 {
     Q_OBJECT
 
@@ -43,19 +43,21 @@ public:
 
 private:
     void newTask(const ProjectExplorer::Task &task);
+    void amendDescription();
 
     // ARM compiler specific parsers.
-    Result parseArmWarningOrErrorDetailsMessage(const QString &lne);
+    bool parseArmWarningOrErrorDetailsMessage(const QString &lne);
     bool parseArmErrorOrFatalErorrMessage(const QString &lne);
 
     // MCS51 compiler specific parsers.
-    Result parseMcs51WarningOrErrorDetailsMessage1(const QString &lne);
-    Result parseMcs51WarningOrErrorDetailsMessage2(const QString &lne);
+    bool parseMcs51WarningOrErrorDetailsMessage1(const QString &lne);
+    bool parseMcs51WarningOrErrorDetailsMessage2(const QString &lne);
     bool parseMcs51WarningOrFatalErrorMessage(const QString &lne);
     bool parseMcs51FatalErrorMessage2(const QString &lne);
 
-    Result handleLine(const QString &line, Utils::OutputFormat type) final;
-    void flush() final;
+    void stdError(const QString &line) final;
+    void stdOutput(const QString &line) final;
+    void doFlush() final;
 
     ProjectExplorer::Task m_lastTask;
     int m_lines = 0;

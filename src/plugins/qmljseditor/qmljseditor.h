@@ -74,7 +74,7 @@ public:
     void inspectElementUnderCursor() const;
 
     void findUsages() override;
-    void renameSymbolUnderCursor() override;
+    void renameUsages();
     void showContextPane();
 
 signals:

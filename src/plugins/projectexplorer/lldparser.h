@@ -30,9 +30,9 @@
 namespace ProjectExplorer {
 namespace Internal {
 
-class LldParser : public OutputTaskParser
+class LldParser : public IOutputParser
 {
-    Result handleLine(const QString &line, Utils::OutputFormat type) override;
+    void stdError(const QString &line) override;
 };
 
 } // namespace Internal

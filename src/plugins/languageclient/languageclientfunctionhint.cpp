@@ -57,9 +57,7 @@ private:
 
 QString FunctionHintProposalModel::text(int index) const
 {
-    if (index < 0 || m_sigis.signatures().size() >= index)
-        return {};
-    return m_sigis.signatures().at(index).label();
+    return m_sigis.signatures().size() > index ? m_sigis.signatures().at(index).label() : QString();
 }
 
 class FunctionHintProcessor : public IAssistProcessor
@@ -67,7 +65,7 @@ class FunctionHintProcessor : public IAssistProcessor
 public:
     explicit FunctionHintProcessor(Client *client) : m_client(client) {}
     IAssistProposal *perform(const AssistInterface *interface) override;
-    bool running() override { return m_currentRequest.has_value(); }
+    bool running() override { return m_currentRequest.isValid(); }
     bool needsRestart() const override { return true; }
     void cancel() override;
 
@@ -75,7 +73,7 @@ private:
     void handleSignatureResponse(const SignatureHelpRequest::Response &response);
 
     QPointer<Client> m_client;
-    Utils::optional<MessageId> m_currentRequest;
+    MessageId m_currentRequest;
     int m_pos = -1;
 };
 
@@ -97,25 +95,19 @@ IAssistProposal *FunctionHintProcessor::perform(const AssistInterface *interface
 void FunctionHintProcessor::cancel()
 {
     if (running()) {
-        m_client->cancelRequest(m_currentRequest.value());
-        m_client->removeAssistProcessor(this);
-        m_currentRequest.reset();
+        m_client->cancelRequest(m_currentRequest);
+        m_currentRequest = MessageId();
     }
 }
 
 void FunctionHintProcessor::handleSignatureResponse(const SignatureHelpRequest::Response &response)
 {
-    m_currentRequest.reset();
+    m_currentRequest = MessageId();
     if (auto error = response.error())
         m_client->log(error.value());
-    m_client->removeAssistProcessor(this);
-    const SignatureHelp &signatureHelp = response.result().value().value();
-    if (signatureHelp.signatures().isEmpty()) {
-        setAsyncProposalAvailable(nullptr);
-    } else {
-        FunctionHintProposalModelPtr model(new FunctionHintProposalModel(signatureHelp));
-        setAsyncProposalAvailable(new FunctionHintProposal(m_pos, model));
-    }
+    FunctionHintProposalModelPtr model(
+        new FunctionHintProposalModel(response.result().value().value()));
+    setAsyncProposalAvailable(new FunctionHintProposal(m_pos, model));
 }
 
 FunctionHintAssistProvider::FunctionHintAssistProvider(Client *client)

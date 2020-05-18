@@ -7,7 +7,6 @@ DEFINES += AUTOTEST_LIBRARY
 
 SOURCES += \
     autotestplugin.cpp \
-    itestframework.cpp \
     itestparser.cpp \
     projectsettingswidget.cpp \
     testcodeparser.cpp \
@@ -28,15 +27,6 @@ SOURCES += \
     testtreeitemdelegate.cpp \
     testtreemodel.cpp \
     testtreeview.cpp \
-    catch/catchcodeparser.cpp \
-    catch/catchconfiguration.cpp \
-    catch/catchframework.cpp \
-    catch/catchoutputreader.cpp \
-    catch/catchresult.cpp \
-    catch/catchtestparser.cpp \
-    catch/catchtestsettings.cpp \
-    catch/catchtestsettingspage.cpp \
-    catch/catchtreeitem.cpp \
     gtest/gtestconfiguration.cpp \
     gtest/gtestparser.cpp \
     gtest/gtesttreeitem.cpp \
@@ -101,15 +91,6 @@ HEADERS += \
     testtreeitemdelegate.h \
     testtreemodel.h \
     testtreeview.h \
-    catch/catchcodeparser.h \
-    catch/catchconfiguration.h \
-    catch/catchframework.h \
-    catch/catchoutputreader.h \
-    catch/catchresult.h \
-    catch/catchtestparser.h \
-    catch/catchtestsettings.h \
-    catch/catchtestsettingspage.h \
-    catch/catchtreeitem.h \
     gtest/gtestconfiguration.h \
     gtest/gtestparser.h \
     gtest/gtesttreeitem.h \
@@ -155,7 +136,6 @@ RESOURCES += \
 FORMS += \
     testsettingspage.ui \
     boost/boosttestsettingspage.ui \
-    catch/catchtestsettingspage.ui \
     qtest/qttestsettingspage.ui \
     gtest/gtestsettingspage.ui
 

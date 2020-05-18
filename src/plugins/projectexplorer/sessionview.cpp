@@ -152,7 +152,7 @@ void SessionView::showEvent(QShowEvent *event)
 
 void SessionView::keyPressEvent(QKeyEvent *event)
 {
-    if (event->key() != Qt::Key_Delete && event->key() != Qt::Key_Backspace) {
+    if (event->key() != Qt::Key_Delete) {
         TreeView::keyPressEvent(event);
         return;
     }

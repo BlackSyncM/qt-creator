@@ -33,6 +33,7 @@ SOURCES += texteditorplugin.cpp \
     findinfiles.cpp \
     basefilefind.cpp \
     texteditorsettings.cpp \
+    codecselector.cpp \
     findincurrentfile.cpp \
     findinopenfiles.cpp \
     colorscheme.cpp \
@@ -119,6 +120,7 @@ HEADERS += texteditorplugin.h \
     findinfiles.h \
     basefilefind.h \
     texteditorsettings.h \
+    codecselector.h \
     findincurrentfile.h \
     findinopenfiles.h \
     colorscheme.h \

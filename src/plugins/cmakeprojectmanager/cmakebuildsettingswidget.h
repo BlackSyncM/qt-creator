@@ -55,7 +55,6 @@ class CMakeBuildConfiguration;
 class CMakeBuildSettingsWidget : public ProjectExplorer::NamedWidget
 {
     Q_OBJECT
-
 public:
     CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc);
 
@@ -89,6 +88,7 @@ private:
     QPushButton *m_reconfigureButton;
     QTimer m_showProgressTimer;
     Utils::FancyLineEdit *m_filterEdit;
+    Utils::InfoLabel *m_errorMessageLabel;
     Utils::InfoLabel *m_warningMessageLabel;
 };
 

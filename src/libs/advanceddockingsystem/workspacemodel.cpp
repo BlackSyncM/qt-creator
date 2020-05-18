@@ -260,18 +260,6 @@ void WorkspaceModel::switchToWorkspace(const QString &workspace)
     emit workspaceSwitched();
 }
 
-void WorkspaceModel::importWorkspace(const QString &workspace)
-{
-    m_manager->importWorkspace(workspace);
-    m_sortedWorkspaces = m_manager->workspaces();
-    sort(m_currentSortColumn, m_currentSortOrder);
-}
-
-void WorkspaceModel::exportWorkspace(const QString &target, const QString &workspace)
-{
-    m_manager->exportWorkspace(target, workspace);
-}
-
 void WorkspaceModel::runWorkspaceNameInputDialog(WorkspaceNameInputDialog *workspaceInputDialog,
                                                  std::function<void(const QString &)> createWorkspace)
 {

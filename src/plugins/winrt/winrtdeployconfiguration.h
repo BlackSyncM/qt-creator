@@ -49,5 +49,11 @@ public:
     WinRtEmulatorDeployConfigurationFactory();
 };
 
+class WinRtDeployStepFactory : public ProjectExplorer::BuildStepFactory
+{
+public:
+    WinRtDeployStepFactory();
+};
+
 } // namespace Internal
 } // namespace WinRt

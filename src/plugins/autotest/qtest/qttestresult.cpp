@@ -136,9 +136,7 @@ const TestTreeItem *QtTestResult::findTestTreeItem() const
         id = Core::Id(Constants::FRAMEWORK_PREFIX).withSuffix(QtTest::Constants::FRAMEWORK_NAME);
     else
         id = Core::Id(Constants::FRAMEWORK_PREFIX).withSuffix(QuickTest::Constants::FRAMEWORK_NAME);
-    ITestFramework *framework = TestFrameworkManager::frameworkForId(id);
-    QTC_ASSERT(framework, return nullptr);
-    const TestTreeItem *rootNode = framework->rootNode();
+    const TestTreeItem *rootNode = TestFrameworkManager::instance()->rootNodeForTestFramework(id);
     QTC_ASSERT(rootNode, return nullptr);
 
     const auto item = rootNode->findAnyChild([this](const Utils::TreeItem *item) {

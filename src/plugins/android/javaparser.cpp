@@ -36,6 +36,18 @@ JavaParser::JavaParser() :
   m_javaRegExp(QLatin1String("^(.*\\[javac\\]\\s)(.*\\.java):(\\d+):(.*)$"))
 { }
 
+void JavaParser::stdOutput(const QString &line)
+{
+    parse(line);
+    IOutputParser::stdOutput(line);
+}
+
+void JavaParser::stdError(const QString &line)
+{
+    parse(line);
+    IOutputParser::stdError(line);
+}
+
 void JavaParser::setProjectFileList(const QStringList &fileList)
 {
     m_fileList = fileList;
@@ -51,36 +63,33 @@ void JavaParser::setSourceDirectory(const Utils::FilePath &sourceDirectory)
     m_sourceDirectory = sourceDirectory;
 }
 
-Utils::OutputLineParser::Result JavaParser::handleLine(const QString &line,
-                                                       Utils::OutputFormat type)
+void JavaParser::parse(const QString &line)
 {
-    Q_UNUSED(type);
-    if (m_javaRegExp.indexIn(line) == -1)
-        return Status::NotHandled;
+    if (m_javaRegExp.indexIn(line) > -1) {
+        bool ok;
+        int lineno = m_javaRegExp.cap(3).toInt(&ok);
+        if (!ok)
+            lineno = -1;
+        Utils::FilePath file = Utils::FilePath::fromUserInput(m_javaRegExp.cap(2));
+        if (file.isChildOf(m_buildDirectory)) {
+            Utils::FilePath relativePath = file.relativeChildPath(m_buildDirectory);
+            file = m_sourceDirectory.pathAppended(relativePath.toString());
+        }
 
-    bool ok;
-    int lineno = m_javaRegExp.cap(3).toInt(&ok);
-    if (!ok)
-        lineno = -1;
-    Utils::FilePath file = Utils::FilePath::fromUserInput(m_javaRegExp.cap(2));
-    if (file.isChildOf(m_buildDirectory)) {
-        Utils::FilePath relativePath = file.relativeChildPath(m_buildDirectory);
-        file = m_sourceDirectory.pathAppended(relativePath.toString());
-    }
-    if (file.toFileInfo().isRelative()) {
-        for (int i = 0; i < m_fileList.size(); i++)
-            if (m_fileList[i].endsWith(file.toString())) {
-                file = Utils::FilePath::fromString(m_fileList[i]);
-                break;
-            }
+        if (file.toFileInfo().isRelative()) {
+            for (int i = 0; i < m_fileList.size(); i++)
+                if (m_fileList[i].endsWith(file.toString())) {
+                    file = Utils::FilePath::fromString(m_fileList[i]);
+                    break;
+                }
+        }
+
+        CompileTask task(Task::Error,
+                         m_javaRegExp.cap(4).trimmed(),
+                         file /* filename */,
+                         lineno);
+        emit addTask(task, 1);
+        return;
     }
 
-    CompileTask task(Task::Error,
-                     m_javaRegExp.cap(4).trimmed(),
-                     absoluteFilePath(file),
-                     lineno);
-    LinkSpecs linkSpecs;
-    addLinkSpecForAbsoluteFilePath(linkSpecs, task.file, task.line, m_javaRegExp, 2);
-    scheduleTask(task, 1);
-    return {Status::Done, linkSpecs};
 }

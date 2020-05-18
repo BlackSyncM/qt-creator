@@ -24,15 +24,16 @@
 ****************************************************************************/
 
 #include "cmakekitinformation.h"
-
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectplugin.h"
 #include "cmakespecificsettings.h"
 #include "cmaketool.h"
 #include "cmaketoolmanager.h"
 
+#include <app/app_version.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/variablechooser.h>
+#include <projectexplorer/kit.h>
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectexplorersettings.h>
@@ -41,23 +42,22 @@
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtkitinformation.h>
 #include <projectexplorer/projectexplorerconstants.h>
-
-#include <app/app_version.h>
-
 #include <utils/algorithm.h>
 #include <utils/elidinglabel.h>
 #include <utils/environment.h>
-#include <utils/macroexpander.h>
 #include <utils/qtcassert.h>
 
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFileInfo>
 #include <QGridLayout>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
+#include <QVariant>
 
 using namespace ProjectExplorer;
 
@@ -197,7 +197,8 @@ private:
 
     void manageCMakeTools()
     {
-        Core::ICore::showOptionsDialog(Constants::CMAKE_SETTINGS_PAGE_ID, buttonWidget());
+        Core::ICore::showOptionsDialog(Constants::CMAKE_SETTINGSPAGE_ID,
+                                       buttonWidget());
     }
 
     bool m_removingItem = false;
@@ -254,11 +255,9 @@ Tasks CMakeKitAspect::validate(const Kit *k) const
     CMakeTool *tool = CMakeKitAspect::cmakeTool(k);
     if (tool) {
         CMakeTool::Version version = tool->version();
-        if (version.major < 3 || (version.major == 3 && version.minor < 14)) {
-            result << BuildSystemTask(Task::Warning,
-                                      tr("CMake version %1 is unsupported. Please update to "
-                                         "version 3.14 (with file-api) or later.")
-                                          .arg(QString::fromUtf8(version.fullVersion)));
+        if (version.major < 3) {
+            result << BuildSystemTask(Task::Warning, tr("CMake version %1 is unsupported. Please update to "
+                                         "version 3.0 or later.").arg(QString::fromUtf8(version.fullVersion)));
         }
     }
     return result;
@@ -469,20 +468,7 @@ private:
 
 namespace {
 
-class GeneratorInfo
-{
-public:
-    GeneratorInfo() = default;
-    GeneratorInfo(const QString &generator_,
-                  const QString &extraGenerator_ = QString(),
-                  const QString &platform_ = QString(),
-                  const QString &toolset_ = QString())
-        : generator(generator_)
-        , extraGenerator(extraGenerator_)
-        , platform(platform_)
-        , toolset(toolset_)
-    {}
-
+struct GeneratorInfo {
     QVariant toVariant() const {
         QVariantMap result;
         result.insert(GENERATOR_KEY, generator);
@@ -584,12 +570,10 @@ void CMakeGeneratorKitAspect::setToolset(Kit *k, const QString &toolset)
 }
 
 void CMakeGeneratorKitAspect::set(Kit *k,
-                                  const QString &generator,
-                                  const QString &extraGenerator,
-                                  const QString &platform,
-                                  const QString &toolset)
+                                       const QString &generator, const QString &extraGenerator,
+                                       const QString &platform, const QString &toolset)
 {
-    GeneratorInfo info(generator, extraGenerator, platform, toolset);
+    GeneratorInfo info = {generator, extraGenerator, platform, toolset};
     setGeneratorInfo(k, info);
 }
 
@@ -623,9 +607,12 @@ QVariant CMakeGeneratorKitAspect::defaultValue(const Kit *k) const
     if (!tool)
         return QVariant();
 
-    const QList<CMakeTool::Generator> known = tool->supportedGenerators();
-    auto it = std::find_if(known.constBegin(), known.constEnd(), [](const CMakeTool::Generator &g) {
-        return g.matches("Ninja");
+    const QString extraGenerator = "CodeBlocks";
+
+    QList<CMakeTool::Generator> known = tool->supportedGenerators();
+    auto it = std::find_if(known.constBegin(), known.constEnd(),
+                           [extraGenerator](const CMakeTool::Generator &g) {
+        return g.matches("Ninja", extraGenerator);
     });
     if (it != known.constEnd()) {
         const bool hasNinja = [k]() {
@@ -641,45 +628,44 @@ QVariant CMakeGeneratorKitAspect::defaultValue(const Kit *k) const
         }();
 
         if (hasNinja)
-            return GeneratorInfo("Ninja").toVariant();
+            return GeneratorInfo({QString("Ninja"), extraGenerator, QString(), QString()}).toVariant();
     }
 
     if (Utils::HostOsInfo::isWindowsHost()) {
         // *sigh* Windows with its zoo of incompatible stuff again...
-        ToolChain *tc = ToolChainKitAspect::cxxToolChain(k);
+        ToolChain *tc = ToolChainKitAspect::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
         if (tc && tc->typeId() == ProjectExplorer::Constants::MINGW_TOOLCHAIN_TYPEID) {
-            it = std::find_if(known.constBegin(),
-                              known.constEnd(),
-                              [](const CMakeTool::Generator &g) {
-                                  return g.matches("MinGW Makefiles");
-                              });
+            it = std::find_if(known.constBegin(), known.constEnd(),
+                              [extraGenerator](const CMakeTool::Generator &g) {
+                return g.matches("MinGW Makefiles", extraGenerator);
+            });
         } else {
-            it = std::find_if(known.constBegin(),
-                              known.constEnd(),
-                              [](const CMakeTool::Generator &g) {
-                                  return g.matches("NMake Makefiles")
-                                         || g.matches("NMake Makefiles JOM");
-                              });
+            it = std::find_if(known.constBegin(), known.constEnd(),
+                              [extraGenerator](const CMakeTool::Generator &g) {
+                return g.matches("NMake Makefiles", extraGenerator)
+                        || g.matches("NMake Makefiles JOM", extraGenerator);
+            });
             if (ProjectExplorerPlugin::projectExplorerSettings().useJom) {
                 it = std::find_if(known.constBegin(),
                                   known.constEnd(),
-                                  [](const CMakeTool::Generator &g) {
-                                      return g.matches("NMake Makefiles JOM");
+                                  [extraGenerator](const CMakeTool::Generator &g) {
+                                      return g.matches("NMake Makefiles JOM", extraGenerator);
                                   });
             }
 
             if (it == known.constEnd()) {
                 it = std::find_if(known.constBegin(),
                                   known.constEnd(),
-                                  [](const CMakeTool::Generator &g) {
-                                      return g.matches("NMake Makefiles");
+                                  [extraGenerator](const CMakeTool::Generator &g) {
+                                      return g.matches("NMake Makefiles", extraGenerator);
                                   });
             }
         }
     } else {
         // Unix-oid OSes:
-        it = std::find_if(known.constBegin(), known.constEnd(), [](const CMakeTool::Generator &g) {
-            return g.matches("Unix Makefiles");
+        it = std::find_if(known.constBegin(), known.constEnd(),
+                          [extraGenerator](const CMakeTool::Generator &g) {
+            return g.matches("Unix Makefiles", extraGenerator);
         });
     }
     if (it == known.constEnd())
@@ -687,7 +673,7 @@ QVariant CMakeGeneratorKitAspect::defaultValue(const Kit *k) const
     if (it == known.constEnd())
         return QVariant();
 
-    return GeneratorInfo(it->name).toVariant();
+    return GeneratorInfo({it->name, extraGenerator, QString(), QString()}).toVariant();
 }
 
 Tasks CMakeGeneratorKitAspect::validate(const Kit *k) const
@@ -717,10 +703,11 @@ Tasks CMakeGeneratorKitAspect::validate(const Kit *k) const
             if (!it->supportsToolset && !info.toolset.isEmpty())
                 addWarning(tr("Toolset is not supported by the selected CMake generator."));
         }
-        if (!tool->hasFileApi()) {
-            addWarning(tr("The selected CMake binary does not support file-api. "
+        if (!tool->hasServerMode() && !tool->hasFileApi() && info.extraGenerator != "CodeBlocks") {
+            addWarning(tr("The selected CMake binary has no server-mode and the CMake "
+                          "generator does not generate a CodeBlocks file. "
                           "%1 will not be able to parse CMake projects.")
-                           .arg(Core::Constants::IDE_DISPLAY_NAME));
+                       .arg(Core::Constants::IDE_DISPLAY_NAME));
         }
     }
 
@@ -753,10 +740,9 @@ void CMakeGeneratorKitAspect::fix(Kit *k)
         dv.fromVariant(defaultValue(k));
         setGeneratorInfo(k, dv);
     } else {
-        const GeneratorInfo dv(info.generator,
-                               info.extraGenerator,
-                               it->supportsPlatform ? info.platform : QString(),
-                               it->supportsToolset ? info.toolset : QString());
+        const GeneratorInfo dv = {info.generator, info.extraGenerator,
+                                  it->supportsPlatform ? info.platform : QString(),
+                                  it->supportsToolset ? info.toolset : QString()};
         setGeneratorInfo(k, dv);
     }
 }
@@ -1005,8 +991,8 @@ Tasks CMakeConfigurationKitAspect::validate(const Kit *k) const
     QTC_ASSERT(k, return Tasks());
 
     const QtSupport::BaseQtVersion *const version = QtSupport::QtKitAspect::qtVersion(k);
-    const ToolChain *const tcC = ToolChainKitAspect::cToolChain(k);
-    const ToolChain *const tcCxx = ToolChainKitAspect::cxxToolChain(k);
+    const ToolChain *const tcC = ToolChainKitAspect::toolChain(k, ProjectExplorer::Constants::C_LANGUAGE_ID);
+    const ToolChain *const tcCxx = ToolChainKitAspect::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     const CMakeConfig config = configuration(k);
 
     const bool isQt4 = version && version->qtVersion() < QtSupport::QtVersionNumber(5, 0, 0);

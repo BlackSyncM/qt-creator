@@ -93,7 +93,6 @@ private:
     friend class BreakHandler;
     friend class BreakpointManager;
     friend class BreakpointMarker;
-    friend class DebuggerEngine;
 
     void updateMarker();
     void updateMarkerIcon();

@@ -55,7 +55,6 @@ QtcPlugin {
         files: [
             "simulatoruvscserverprovider.cpp", "simulatoruvscserverprovider.h",
             "stlinkuvscserverprovider.cpp", "stlinkuvscserverprovider.h",
-            "jlinkuvscserverprovider.cpp", "jlinkuvscserverprovider.h",
             "uvproject.cpp", "uvproject.h",
             "uvprojectwriter.cpp", "uvprojectwriter.h",
             "uvscserverprovider.cpp", "uvscserverprovider.h",

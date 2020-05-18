@@ -32,23 +32,34 @@
 
 namespace ProjectExplorer {
 
-class PROJECTEXPLORER_EXPORT GnuMakeParser : public ProjectExplorer::OutputTaskParser
+class PROJECTEXPLORER_EXPORT GnuMakeParser : public ProjectExplorer::IOutputParser
 {
     Q_OBJECT
 
 public:
     explicit GnuMakeParser();
 
-private:
-    Result handleLine(const QString &line, Utils::OutputFormat type) override;
+    void stdOutput(const QString &line) override;
+    void stdError(const QString &line) override;
+
+    void setWorkingDirectory(const QString &workingDirectory) override;
+
+    QStringList searchDirectories() const;
+
     bool hasFatalErrors() const override;
 
-    void emitTask(const ProjectExplorer::Task &task);
+    void taskAdded(const ProjectExplorer::Task &task, int linkedLines, int skippedLines) override;
+
+private:
+    void addDirectory(const QString &dir);
+    void removeDirectory(const QString &dir);
 
     QRegularExpression m_makeDir;
     QRegularExpression m_makeLine;
     QRegularExpression m_threeStarError;
     QRegularExpression m_errorInMakefile;
+
+    QStringList m_directories;
 
     bool m_suppressIssues = false;
 
@@ -68,7 +79,7 @@ public:
     explicit GnuMakeParserTester(GnuMakeParser *parser, QObject *parent = nullptr);
     void parserIsAboutToBeDeleted();
 
-    Utils::FilePaths directories;
+    QStringList directories;
     GnuMakeParser *parser;
 };
 #endif

@@ -45,7 +45,6 @@ void JsonFilePage::initializePage()
         setFileName(wiz->stringValue(QLatin1String("InitialFileName")));
     if (path().isEmpty())
         setPath(wiz->stringValue(QLatin1String("InitialPath")));
-    setDefaultSuffix(wiz->stringValue("DefaultSuffix"));
 }
 
 bool JsonFilePage::validatePage()

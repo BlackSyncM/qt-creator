@@ -136,13 +136,13 @@ ParseIssuesDialog::~ParseIssuesDialog()
 }
 
 static void parse(QFutureInterface<void> &future, const QString &output,
-                  const std::unique_ptr<Utils::OutputFormatter> &parser, bool isStderr)
+                  const std::unique_ptr<IOutputParser> &parser, bool isStderr)
 {
     const QStringList lines = output.split('\n');
     future.setProgressRange(0, lines.count());
-    const Utils::OutputFormat format = isStderr ? Utils::StdErrFormat : Utils::StdOutFormat;
+    const auto parserFunc = isStderr ? &IOutputParser::stdError : &IOutputParser::stdOutput;
     for (const QString &line : lines) {
-        parser->appendMessage(line + '\n', format);
+        (parser.get()->*parserFunc)(line);
         future.setProgressValue(future.progressValue() + 1);
         if (future.isCanceled())
             return;
@@ -151,17 +151,15 @@ static void parse(QFutureInterface<void> &future, const QString &output,
 
 void ParseIssuesDialog::accept()
 {
-    const QList<Utils::OutputLineParser *> lineParsers =
-            d->kitChooser.currentKit()->createOutputParsers();
-    if (lineParsers.isEmpty()) {
+    std::unique_ptr<IOutputParser> parser(d->kitChooser.currentKit()->createOutputParser());
+    if (!parser) {
         QMessageBox::critical(this, tr("Cannot Parse"), tr("Cannot parse: The chosen kit does "
                                                            "not provide an output parser."));
         return;
     }
-    std::unique_ptr<Utils::OutputFormatter> parser(new Utils::OutputFormatter);
-    parser->setLineParsers(lineParsers);
     if (d->clearTasksCheckBox.isChecked())
         TaskHub::clearTasks();
+    connect(parser.get(), &IOutputParser::addTask, [](const Task &t) { TaskHub::addTask(t); });
     const QFuture<void> f = Utils::runAsync(&parse, d->compileOutputEdit.toPlainText(),
                                             std::move(parser), d->stderrCheckBox.isChecked());
     Core::ProgressManager::addTask(f, tr("Parsing build output"),

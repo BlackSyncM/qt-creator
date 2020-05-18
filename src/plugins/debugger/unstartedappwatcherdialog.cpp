@@ -121,7 +121,7 @@ UnstartedAppWatcherDialog::UnstartedAppWatcherDialog(QWidget *parent)
             if (isLocal(runConfig)) {
                 resetExecutable->setEnabled(true);
                 connect(resetExecutable, &QPushButton::clicked, this, [this, runnable] {
-                    m_pathChooser->setFilePath(runnable.executable);
+                    m_pathChooser->setFileName(runnable.executable);
                 });
             }
         }
@@ -256,7 +256,7 @@ void UnstartedAppWatcherDialog::startStopTimer(bool start)
 
 void UnstartedAppWatcherDialog::findProcess()
 {
-    const QString &appName = Utils::FileUtils::normalizePathName(m_pathChooser->filePath().toString());
+    const QString &appName = Utils::FileUtils::normalizePathName(m_pathChooser->path());
     DeviceProcessItem fallback;
     foreach (const DeviceProcessItem &p, DeviceProcessList::localProcesses()) {
         if (Utils::FileUtils::normalizePathName(p.exe) == appName) {
@@ -291,8 +291,8 @@ void UnstartedAppWatcherDialog::kitChanged()
 
 bool UnstartedAppWatcherDialog::checkExecutableString() const
 {
-    if (!m_pathChooser->filePath().toString().isEmpty()) {
-        QFileInfo fileInfo(m_pathChooser->filePath().toString());
+    if (!m_pathChooser->path().isEmpty()) {
+        QFileInfo fileInfo(m_pathChooser->path());
         return (fileInfo.exists() && fileInfo.isFile());
     }
     return false;

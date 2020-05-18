@@ -59,8 +59,14 @@
 
     \section1 Adding CMake Tools
 
-    \QC requires CMake's {https://cmake.org/cmake/help/latest/manual/cmake-file-api.7.html}
-    {file-based API}.  Please make sure to use CMake version 3.14, or later.
+    \QC supports CMake version 3.0, or later. For best results you should use
+    CMake version 3.7.2 with server-mode support, or later. Earlier versions
+    provide less information to the code model, which will then fail to resolve
+    includes and defines.
+
+    For CMake version 3.14, or later, \QC supports the
+    \l {https://cmake.org/cmake/help/latest/manual/cmake-file-api.7.html}
+    {file-based API}.
 
     To specify paths to CMake executables:
 

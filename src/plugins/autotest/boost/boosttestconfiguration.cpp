@@ -29,16 +29,24 @@
 #include "boosttestsettings.h"
 
 #include "../autotestplugin.h"
-#include "../itestframework.h"
+#include "../testframeworkmanager.h"
 #include "../testsettings.h"
 
 namespace Autotest {
 namespace Internal {
 
+static QSharedPointer<BoostTestSettings> getBoostSettings()
+{
+    const Core::Id id = Core::Id(Constants::FRAMEWORK_PREFIX).withSuffix(
+                BoostTest::Constants::FRAMEWORK_NAME);
+    TestFrameworkManager *manager = TestFrameworkManager::instance();
+    return qSharedPointerCast<BoostTestSettings>(manager->settingsForTestFramework(id));
+}
+
 TestOutputReader *BoostTestConfiguration::outputReader(const QFutureInterface<TestResultPtr> &fi,
                                                        QProcess *app) const
 {
-    auto settings = dynamic_cast<BoostTestSettings *>(framework()->frameworkSettings());
+    auto settings = getBoostSettings();
     return new BoostTestOutputReader(fi, app, buildDirectory(), projectFile(),
                                      settings->logLevel, settings->reportLevel);
 }
@@ -105,7 +113,7 @@ static QStringList filterInterfering(const QStringList &provided, QStringList *o
 
 QStringList BoostTestConfiguration::argumentsForTestRunner(QStringList *omitted) const
 {
-    auto boostSettings = dynamic_cast<BoostTestSettings *>(framework()->frameworkSettings());
+    auto boostSettings = getBoostSettings();
     QStringList arguments;
     arguments << "-l" << BoostTestSettings::logLevelToOption(boostSettings->logLevel);
     arguments << "-r" << BoostTestSettings::reportLevelToOption(boostSettings->reportLevel);

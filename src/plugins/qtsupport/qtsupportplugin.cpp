@@ -122,7 +122,7 @@ static void askAboutQtInstallation()
 {
     // if the install settings exist, the Qt Creator installation is (probably) already linked to
     // a Qt installation, so don't ask
-    if (!QtOptionsPage::canLinkWithQt() || QtOptionsPage::isLinkedWithQt()
+    if (QFile::exists(ICore::settings(QSettings::SystemScope)->fileName())
         || !ICore::infoBar()->canInfoBeAdded(kLinkWithQtInstallationSetting))
         return;
 

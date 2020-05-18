@@ -80,7 +80,7 @@ ImportWidget::ImportWidget(QWidget *parent) :
 void ImportWidget::setCurrentDirectory(const Utils::FilePath &dir)
 {
     m_pathChooser->setBaseDirectory(dir);
-    m_pathChooser->setFilePath(dir);
+    m_pathChooser->setFileName(dir);
 }
 
 bool ImportWidget::ownsReturnKey() const
@@ -90,10 +90,10 @@ bool ImportWidget::ownsReturnKey() const
 
 void ImportWidget::handleImportRequest()
 {
-    Utils::FilePath dir = m_pathChooser->filePath();
+    Utils::FilePath dir = m_pathChooser->fileName();
     emit importFrom(dir);
 
-    m_pathChooser->setFilePath(m_pathChooser->baseDirectory());
+    m_pathChooser->setFileName(m_pathChooser->baseDirectory());
 }
 
 } // namespace Internal

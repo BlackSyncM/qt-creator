@@ -43,9 +43,12 @@ int main(int argc, char *argv[])
 
     QCoreApplication application(argc, argv);
 
+
     if (application.arguments().count() < 2)
         return 1;
-    if (application.arguments().contains("connectionName"))
+    else if (application.arguments().count() == 3)
+        *(int*)0 = 0;
+    else if (application.arguments().contains("connectionName"))
         return 0;
 
     EchoClangCodeModelServer echoClangCodeModelServer;

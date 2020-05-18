@@ -841,9 +841,8 @@ class LANGUAGESERVERPROTOCOL_EXPORT SemanticHighlightingParams : public JsonObje
 public:
     using JsonObject::JsonObject;
 
-    Utils::variant<VersionedTextDocumentIdentifier, TextDocumentIdentifier> textDocument() const;
-    void setTextDocument(const TextDocumentIdentifier &textDocument)
-    { insert(textDocumentKey, textDocument); }
+    VersionedTextDocumentIdentifier textDocument() const
+    { return typedValue<VersionedTextDocumentIdentifier>(textDocumentKey); }
     void setTextDocument(const VersionedTextDocumentIdentifier &textDocument)
     { insert(textDocumentKey, textDocument); }
 

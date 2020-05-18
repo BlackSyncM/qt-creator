@@ -26,7 +26,7 @@
 #include "fontsizespinbox.h"
 
 #include <QLineEdit>
-#include <QRegularExpressionValidator>
+#include <QRegExpValidator>
 
 namespace QmlEditorWidgets {
 
@@ -91,7 +91,8 @@ void FontSizeSpinBox::onEditingFinished()
 
 QValidator::State FontSizeSpinBox::validate (QString &input, int &p) const
 {
-    QRegularExpressionValidator v(QRegularExpression(QLatin1String("\\d+\\s*(px|pt)")), nullptr);
+    QRegExp rx(QLatin1String("\\d+\\s*(px|pt)"));
+    QRegExpValidator v(rx, nullptr);
     return v.validate(input, p);
 }
 

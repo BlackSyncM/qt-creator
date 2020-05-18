@@ -33,8 +33,6 @@
 #include <projectexplorer/runconfiguration.h>
 #include <projectexplorer/devicesupport/deviceusedportsgatherer.h>
 
-#include <utils/environmentfwd.h>
-
 namespace Debugger {
 
 namespace Internal {
@@ -80,7 +78,7 @@ public:
     void setRunControlName(const QString &name);
     void setStartMessage(const QString &msg);
     void addQmlServerInferiorCommandLineArgumentIfNeeded();
-    void modifyDebuggerEnvironment(const Utils::EnvironmentItems &item);
+
     void setCrashParameter(const QString &event);
 
     void addExpectedSignal(const QString &signal);
@@ -129,7 +127,6 @@ public:
     void setAbi(const ProjectExplorer::Abi &abi);
 
     Internal::TerminalRunner *terminalRunner() const;
-    DebuggerEngineType cppEngineType() const;
 
 private:
     bool fixupParameters();

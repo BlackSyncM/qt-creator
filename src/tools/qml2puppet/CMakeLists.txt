@@ -97,7 +97,18 @@ extend_qtc_executable(qml2puppet
   FEATURE_INFO "Qt Quick 3D"
   DEPENDS Qt5::Quick3D Qt5::Quick3DPrivate
   DEFINES QUICK3D_MODULE
+)
 
+extend_qtc_executable(qml2puppet
+  SOURCES_PREFIX "${SRCDIR}/interfaces"
+  SOURCES
+    commondefines.h
+    nodeinstanceclientinterface.h
+    nodeinstanceglobal.h
+    nodeinstanceserverinterface.cpp nodeinstanceserverinterface.h
+)
+
+extend_qtc_executable(qml2puppet
   SOURCES_PREFIX "${SRCDIR}/qml2puppet/editor3d"
   SOURCES
     generalhelper.cpp generalhelper.h
@@ -108,15 +119,6 @@ extend_qtc_executable(qml2puppet
     selectionboxgeometry.cpp selectionboxgeometry.h
     linegeometry.cpp linegeometry.h
     icongizmoimageprovider.cpp icongizmoimageprovider.h
-)
-
-extend_qtc_executable(qml2puppet
-  SOURCES_PREFIX "${SRCDIR}/interfaces"
-  SOURCES
-    commondefines.h
-    nodeinstanceclientinterface.h
-    nodeinstanceglobal.h
-    nodeinstanceserverinterface.cpp nodeinstanceserverinterface.h
 )
 
 extend_qtc_executable(qml2puppet

@@ -29,6 +29,7 @@
 
 #include <coreplugin/id.h>
 #include <utils/displayname.h>
+#include <utils/macroexpander.h>
 
 #include <QObject>
 #include <QPointer>
@@ -187,6 +188,9 @@ public:
     // Note: Make sure subclasses call the superclasses' toMap() function!
     virtual QVariantMap toMap() const;
 
+    Utils::MacroExpander *macroExpander() { return &m_macroExpander; }
+    const Utils::MacroExpander *macroExpander() const { return &m_macroExpander; }
+
     Target *target() const;
     Project *project() const;
 
@@ -217,6 +221,7 @@ private:
     const Core::Id m_id;
     Utils::DisplayName m_displayName;
     QString m_toolTip;
+    Utils::MacroExpander m_macroExpander;
 };
 
 // helper function:

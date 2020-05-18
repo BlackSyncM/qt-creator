@@ -31,6 +31,7 @@
 #include <coreplugin/find/basetextfind.h>
 #include <coreplugin/outputwindow.h>
 #include <utils/fileutils.h>
+#include <utils/outputformatter.h>
 #include <utils/qtcprocess.h>
 #include <texteditor/behaviorsettings.h>
 #include <texteditor/fontsettings.h>
@@ -96,11 +97,12 @@ class OutputWindowPlainTextEdit : public Core::OutputWindow
 {
 public:
     explicit OutputWindowPlainTextEdit(QWidget *parent = nullptr);
+    ~OutputWindowPlainTextEdit() override;
 
     void appendLines(const QString &s, const QString &repository = QString());
     void appendLinesWithStyle(const QString &s, VcsOutputWindow::MessageStyle style,
                               const QString &repository = QString());
-    VcsOutputLineParser *parser();
+    VcsOutputFormatter *formatter();
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
@@ -110,7 +112,7 @@ private:
     QString identifierUnderCursor(const QPoint &pos, QString *repository = nullptr) const;
 
     Utils::OutputFormat m_format;
-    VcsOutputLineParser *m_parser = nullptr;
+    VcsOutputFormatter *m_formatter = nullptr;
 };
 
 OutputWindowPlainTextEdit::OutputWindowPlainTextEdit(QWidget *parent) :
@@ -119,12 +121,17 @@ OutputWindowPlainTextEdit::OutputWindowPlainTextEdit(QWidget *parent) :
     setReadOnly(true);
     setUndoRedoEnabled(false);
     setFrameStyle(QFrame::NoFrame);
-    outputFormatter()->setBoldFontEnabled(false);
-    m_parser = new VcsOutputLineParser;
-    setLineParsers({m_parser});
+    m_formatter = new VcsOutputFormatter;
+    m_formatter->setBoldFontEnabled(false);
+    setFormatter(m_formatter);
     auto agg = new Aggregation::Aggregate;
     agg->add(this);
     agg->add(new Core::BaseTextFind(this));
+}
+
+OutputWindowPlainTextEdit::~OutputWindowPlainTextEdit()
+{
+    delete m_formatter;
 }
 
 // Search back for beginning of word
@@ -174,9 +181,9 @@ void OutputWindowPlainTextEdit::contextMenuEvent(QContextMenuEvent *event)
     QString repository;
     const QString token = identifierUnderCursor(event->pos(), &repository);
     if (!repository.isEmpty()) {
-        if (VcsOutputLineParser * const p = parser()) {
+        if (VcsOutputFormatter *f = formatter()) {
             if (!href.isEmpty())
-                p->fillLinkContextMenu(menu, repository, href);
+                f->fillLinkContextMenu(menu, repository, href);
         }
     }
     QAction *openAction = nullptr;
@@ -221,7 +228,10 @@ void OutputWindowPlainTextEdit::appendLines(const QString &s, const QString &rep
 
     const int previousLineCount = document()->lineCount();
 
-    outputFormatter()->appendMessage(s, m_format);
+    const QChar newLine('\n');
+    const QChar lastChar = s.at(s.size() - 1);
+    const bool appendNewline = (lastChar != '\r' && lastChar != newLine);
+    m_formatter->appendMessage(appendNewline ? s + newLine : s, m_format);
 
     // Scroll down
     moveCursor(QTextCursor::End);
@@ -248,24 +258,24 @@ void OutputWindowPlainTextEdit::appendLinesWithStyle(const QString &s,
     }
 }
 
-VcsOutputLineParser *OutputWindowPlainTextEdit::parser()
+VcsOutputFormatter *OutputWindowPlainTextEdit::formatter()
 {
-    return m_parser;
+    return m_formatter;
 }
 
 void OutputWindowPlainTextEdit::setFormat(VcsOutputWindow::MessageStyle style)
 {
-    outputFormatter()->setBoldFontEnabled(style == VcsOutputWindow::Command);
+    m_formatter->setBoldFontEnabled(style == VcsOutputWindow::Command);
 
     switch (style) {
     case VcsOutputWindow::Warning:
         m_format = LogMessageFormat;
         break;
     case VcsOutputWindow::Error:
-        m_format = StdErrFormat;
+        m_format = ErrorMessageFormat;
         break;
     case VcsOutputWindow::Message:
-        m_format = StdOutFormat;
+        m_format = NormalMessageFormat;
         break;
     case VcsOutputWindow::Command:
         m_format = NormalMessageFormat;
@@ -311,7 +321,7 @@ VcsOutputWindow::VcsOutputWindow()
     connect(this, &IOutputPane::resetZoom, &d->widget, &Core::OutputWindow::resetZoom);
     connect(TextEditor::TextEditorSettings::instance(), &TextEditor::TextEditorSettings::behaviorSettingsChanged,
             this, updateBehaviorSettings);
-    connect(d->widget.parser(), &VcsOutputLineParser::referenceClicked,
+    connect(d->widget.formatter(), &VcsOutputFormatter::referenceClicked,
             VcsOutputWindow::instance(), &VcsOutputWindow::referenceClicked);
 }
 

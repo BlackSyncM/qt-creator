@@ -227,7 +227,7 @@ std::string SymbolGroup::debug(const std::string &iname,
 {
     std::ostringstream str;
     str << '\n';
-    std::unique_ptr<DebugSymbolGroupNodeVisitor>
+    std::auto_ptr<DebugSymbolGroupNodeVisitor>
             visitor(filter.empty() ?
             new DebugSymbolGroupNodeVisitor(str, verbosity) :
             new DebugFilterSymbolGroupNodeVisitor(str, filter, verbosity));

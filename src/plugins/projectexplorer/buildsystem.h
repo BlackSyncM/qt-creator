@@ -54,7 +54,6 @@ public:
     Project *project() const;
     Target *target() const;
     Kit *kit() const;
-    BuildConfiguration *buildConfiguration() const;
 
     Utils::FilePath projectFilePath() const;
     Utils::FilePath projectDirectory() const;
@@ -63,10 +62,6 @@ public:
 
     void requestParse();
     void requestDelayedParse();
-    void requestParseWithCustomDelay(int delayInMs = 1000);
-    void cancelDelayedParseRequest();
-    void setParseDelay(int delayInMs);
-    int parseDelay() const;
 
     bool isParsing() const;
     bool hasParsingData() const;
@@ -120,9 +115,6 @@ public:
     };
 
     void emitBuildSystemUpdated();
-
-    void setExtraData(const QString &buildKey, Core::Id dataKey, const QVariant &data);
-    QVariant extraData(const QString &buildKey, Core::Id dataKey) const;
 
 public:
     // FIXME: Make this private and the BuildSystem a friend

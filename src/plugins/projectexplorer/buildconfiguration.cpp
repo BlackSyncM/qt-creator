@@ -26,23 +26,22 @@
 #include "buildconfiguration.h"
 
 #include "buildaspects.h"
+#include "buildenvironmentwidget.h"
 #include "buildinfo.h"
 #include "buildsteplist.h"
 #include "buildstepspage.h"
 #include "buildsystem.h"
-#include "customparser.h"
-#include "environmentwidget.h"
+#include "namedwidget.h"
 #include "kit.h"
 #include "kitinformation.h"
 #include "kitmanager.h"
-#include "namedwidget.h"
-#include "projectexplorerconstants.h"
-#include "projectexplorer.h"
 #include "project.h"
+#include "projectexplorer.h"
+#include "projectexplorerconstants.h"
 #include "projectmacroexpander.h"
 #include "projecttree.h"
-#include "session.h"
 #include "target.h"
+#include "session.h"
 #include "toolchain.h"
 
 #include <coreplugin/idocument.h>
@@ -55,10 +54,8 @@
 #include <utils/mimetypes/mimetype.h>
 #include <utils/qtcassert.h>
 
-#include <QCheckBox>
 #include <QDebug>
 #include <QFormLayout>
-#include <QVBoxLayout>
 
 using namespace Utils;
 
@@ -66,68 +63,9 @@ const char BUILD_STEP_LIST_COUNT[] = "ProjectExplorer.BuildConfiguration.BuildSt
 const char BUILD_STEP_LIST_PREFIX[] = "ProjectExplorer.BuildConfiguration.BuildStepList.";
 const char CLEAR_SYSTEM_ENVIRONMENT_KEY[] = "ProjectExplorer.BuildConfiguration.ClearSystemEnvironment";
 const char USER_ENVIRONMENT_CHANGES_KEY[] = "ProjectExplorer.BuildConfiguration.UserEnvironmentChanges";
-const char CUSTOM_PARSERS_KEY[] = "ProjectExplorer.BuildConfiguration.CustomParsers";
 
 namespace ProjectExplorer {
 namespace Internal {
-
-class BuildEnvironmentWidget : public NamedWidget
-{
-    Q_DECLARE_TR_FUNCTIONS(ProjectExplorer::Internal::BuildEnvironmentWidget)
-
-public:
-    explicit BuildEnvironmentWidget(BuildConfiguration *bc)
-        : NamedWidget(tr("Build Environment"))
-    {
-        auto clearBox = new QCheckBox(tr("Clear system environment"), this);
-        clearBox->setChecked(!bc->useSystemEnvironment());
-
-        auto envWidget = new EnvironmentWidget(this, EnvironmentWidget::TypeLocal, clearBox);
-        envWidget->setBaseEnvironment(bc->baseEnvironment());
-        envWidget->setBaseEnvironmentText(bc->baseEnvironmentText());
-        envWidget->setUserChanges(bc->userEnvironmentChanges());
-
-        connect(envWidget, &EnvironmentWidget::userChangesChanged, this, [bc, envWidget] {
-            bc->setUserEnvironmentChanges(envWidget->userChanges());
-        });
-
-        connect(clearBox, &QAbstractButton::toggled, this, [bc, envWidget](bool checked) {
-            bc->setUseSystemEnvironment(!checked);
-            envWidget->setBaseEnvironment(bc->baseEnvironment());
-            envWidget->setBaseEnvironmentText(bc->baseEnvironmentText());
-        });
-
-        connect(bc, &BuildConfiguration::environmentChanged, this, [bc, envWidget] {
-            envWidget->setBaseEnvironment(bc->baseEnvironment());
-            envWidget->setBaseEnvironmentText(bc->baseEnvironmentText());
-        });
-
-        auto vbox = new QVBoxLayout(this);
-        vbox->setContentsMargins(0, 0, 0, 0);
-        vbox->addWidget(clearBox);
-        vbox->addWidget(envWidget);
-    }
-};
-
-class CustomParsersBuildWidget : public NamedWidget
-{
-    Q_DECLARE_TR_FUNCTIONS(ProjectExplorer::Internal::CustomParsersBuildWidget)
-public:
-    CustomParsersBuildWidget(BuildConfiguration *bc) : NamedWidget(tr("Custom Output Parsers"))
-    {
-        const auto selectionWidget = new CustomParsersSelectionWidget(this);
-        const auto layout = new QVBoxLayout(this);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->addWidget(selectionWidget);
-
-        connect(selectionWidget, &CustomParsersSelectionWidget::selectionChanged,
-                [selectionWidget, bc] {
-            bc->setCustomParsers(selectionWidget->selectedParsers());
-        });
-        selectionWidget->setSelectedParsers(bc->customParsers());
-    }
-};
-
 
 class BuildConfigurationPrivate
 {
@@ -148,8 +86,6 @@ public:
     bool m_configWidgetHasFrame = false;
     QList<Core::Id> m_initialBuildSteps;
     QList<Core::Id> m_initialCleanSteps;
-    Utils::MacroExpander m_macroExpander;
-    QList<Core::Id> m_customParsers;
 
     // FIXME: Remove.
     BuildConfiguration::BuildType m_initialBuildType = BuildConfiguration::Unknown;
@@ -194,7 +130,7 @@ BuildConfiguration::BuildConfiguration(Target *target, Core::Id id)
     d->m_buildDirectoryAspect->setEnvironment(environment());
     d->m_buildDirectoryAspect->setMacroExpanderProvider([this] { return macroExpander(); });
     connect(d->m_buildDirectoryAspect, &BaseStringAspect::changed,
-            this, &BuildConfiguration::emitBuildDirectoryChanged);
+            this, &BuildConfiguration::buildDirectoryChanged);
     connect(this, &BuildConfiguration::environmentChanged, this, [this] {
         d->m_buildDirectoryAspect->setEnvironment(environment());
         this->target()->buildEnvironmentChanged(this);
@@ -268,19 +204,6 @@ void BuildConfiguration::doInitialize(const BuildInfo &info)
         d->m_initializer(info);
 }
 
-MacroExpander *BuildConfiguration::macroExpander() const
-{
-    return &d->m_macroExpander;
-}
-
-bool BuildConfiguration::createBuildDirectory()
-{
-    QDir dir;
-    const auto result = dir.mkpath(buildDirectory().toString());
-    buildDirectoryAspect()->validateInput();
-    return result;
-}
-
 void BuildConfiguration::setInitializer(const std::function<void(const BuildInfo &)> &initializer)
 {
     d->m_initializer = initializer;
@@ -316,10 +239,7 @@ NamedWidget *BuildConfiguration::createConfigWidget()
 
 QList<NamedWidget *> BuildConfiguration::createSubConfigWidgets()
 {
-    return {
-        new Internal::BuildEnvironmentWidget(this),
-        new Internal::CustomParsersBuildWidget(this)
-    };
+    return {new BuildEnvironmentWidget(this)};
 }
 
 BuildSystem *BuildConfiguration::buildSystem() const
@@ -359,8 +279,6 @@ QVariantMap BuildConfiguration::toMap() const
     map.insert(QLatin1String(BUILD_STEP_LIST_PREFIX) + QString::number(0), d->m_buildSteps.toMap());
     map.insert(QLatin1String(BUILD_STEP_LIST_PREFIX) + QString::number(1), d->m_cleanSteps.toMap());
 
-    map.insert(CUSTOM_PARSERS_KEY, transform(d->m_customParsers,&Core::Id::toSetting));
-
     return map;
 }
 
@@ -392,8 +310,6 @@ bool BuildConfiguration::fromMap(const QVariantMap &map)
             qWarning() << "Ignoring unknown step list";
         }
     }
-
-    d->m_customParsers = transform(map.value(CUSTOM_PARSERS_KEY).toList(), &Core::Id::fromSetting);
 
     return ProjectConfiguration::fromMap(map);
 }
@@ -478,16 +394,6 @@ void BuildConfiguration::addToEnvironment(Environment &env) const
     Q_UNUSED(env)
 }
 
-const QList<Core::Id> BuildConfiguration::customParsers() const
-{
-    return d->m_customParsers;
-}
-
-void BuildConfiguration::setCustomParsers(const QList<Core::Id> &parsers)
-{
-    d->m_customParsers = parsers;
-}
-
 bool BuildConfiguration::useSystemEnvironment() const
 {
     return !d->m_clearSystemEnvironment;
@@ -564,7 +470,8 @@ bool BuildConfiguration::isActive() const
 
 void BuildConfiguration::prependCompilerPathToEnvironment(Kit *k, Environment &env)
 {
-    const ToolChain *tc = ToolChainKitAspect::cxxToolChain(k);
+    const ToolChain *tc
+            = ToolChainKitAspect::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
 
     if (!tc)
         return;

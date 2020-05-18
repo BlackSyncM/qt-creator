@@ -24,6 +24,7 @@
 ****************************************************************************/
 
 #include "abstractprocessstep.h"
+#include "ansifilterparser.h"
 #include "buildconfiguration.h"
 #include "buildstep.h"
 #include "ioutputparser.h"
@@ -36,15 +37,14 @@
 
 #include <coreplugin/reaper.h>
 
+#include <utils/fileinprojectfinder.h>
 #include <utils/fileutils.h>
-#include <utils/outputformatter.h>
 #include <utils/qtcassert.h>
 #include <utils/qtcprocess.h>
 
 #include <QDir>
 #include <QHash>
 #include <QPair>
-#include <QTextDecoder>
 #include <QUrl>
 
 #include <algorithm>
@@ -105,12 +105,18 @@ public:
 
     AbstractProcessStep *q;
     std::unique_ptr<Utils::QtcProcess> m_process;
+    std::unique_ptr<IOutputParser> m_outputParserChain;
     ProcessParameters m_param;
+    Utils::FileInProjectFinder m_fileFinder;
+    QByteArray deferredText;
     bool m_ignoreReturnValue = false;
+    bool m_skipFlush = false;
     bool m_lowPriority = false;
-    std::unique_ptr<QTextDecoder> stdoutStream;
-    std::unique_ptr<QTextDecoder> stderrStream;
-    OutputFormatter *outputFormatter = nullptr;
+
+    void readData(void (AbstractProcessStep::*func)(const QString &), bool isUtf8 = false);
+    void processLine(const QByteArray &data,
+                     void (AbstractProcessStep::*func)(const QString &),
+                     bool isUtf8 = false);
 };
 
 AbstractProcessStep::AbstractProcessStep(BuildStepList *bsl, Core::Id id) :
@@ -122,6 +128,39 @@ AbstractProcessStep::AbstractProcessStep(BuildStepList *bsl, Core::Id id) :
 AbstractProcessStep::~AbstractProcessStep()
 {
     delete d;
+}
+
+/*!
+     Deletes all existing output parsers and starts a new chain with the
+     given parser.
+
+     Derived classes need to call this function.
+*/
+
+void AbstractProcessStep::setOutputParser(IOutputParser *parser)
+{
+    d->m_outputParserChain.reset(new AnsiFilterParser);
+    d->m_outputParserChain->appendOutputParser(parser);
+
+    connect(d->m_outputParserChain.get(), &IOutputParser::addOutput, this, &AbstractProcessStep::outputAdded);
+    connect(d->m_outputParserChain.get(), &IOutputParser::addTask, this, &AbstractProcessStep::taskAdded);
+}
+
+/*!
+    Appends the given output parser to the existing chain of parsers.
+*/
+void AbstractProcessStep::appendOutputParser(IOutputParser *parser)
+{
+    if (!parser)
+        return;
+
+    QTC_ASSERT(d->m_outputParserChain, return);
+    d->m_outputParserChain->appendOutputParser(parser);
+}
+
+IOutputParser *AbstractProcessStep::outputParser() const
+{
+    return d->m_outputParserChain.get();
 }
 
 void AbstractProcessStep::emitFaultyConfigurationMessage()
@@ -154,14 +193,9 @@ void AbstractProcessStep::setIgnoreReturnValue(bool b)
 
 bool AbstractProcessStep::init()
 {
+    d->m_fileFinder.setProjectDirectory(project()->projectDirectory());
+    d->m_fileFinder.setProjectFiles(project()->files(Project::AllFiles));
     return !d->m_process;
-}
-
-void AbstractProcessStep::setupOutputFormatter(OutputFormatter *formatter)
-{
-    formatter->setDemoteErrorsToWarnings(d->m_ignoreReturnValue);
-    d->outputFormatter = formatter;
-    BuildStep::setupOutputFormatter(formatter);
 }
 
 /*!
@@ -191,19 +225,10 @@ void AbstractProcessStep::doRun()
         return;
     }
 
-    d->stdoutStream = std::make_unique<QTextDecoder>(buildEnvironment().hasKey("VSLANG")
-            ? QTextCodec::codecForName("UTF-8") : QTextCodec::codecForLocale());
-    d->stderrStream = std::make_unique<QTextDecoder>(QTextCodec::codecForLocale());
-
     d->m_process.reset(new Utils::QtcProcess());
     d->m_process->setUseCtrlCStub(Utils::HostOsInfo::isWindowsHost());
     d->m_process->setWorkingDirectory(wd.absolutePath());
-    // Enforce PWD in the environment because some build tools use that.
-    // PWD can be different from getcwd in case of symbolic links (getcwd resolves symlinks).
-    // For example Clang uses PWD for paths in debug info, see QTCREATORBUG-23788
-    Environment envWithPwd = d->m_param.environment();
-    envWithPwd.set("PWD", d->m_process->workingDirectory());
-    d->m_process->setEnvironment(envWithPwd);
+    d->m_process->setEnvironment(d->m_param.environment());
     d->m_process->setCommand(effectiveCommand);
     if (d->m_lowPriority && ProjectExplorerPlugin::projectExplorerSettings().lowBuildPriority)
         d->m_process->setLowPriority();
@@ -219,6 +244,7 @@ void AbstractProcessStep::doRun()
     if (!d->m_process->waitForStarted()) {
         processStartupFailed();
         d->m_process.reset();
+        d->m_outputParserChain.reset();
         finish(false);
         return;
     }
@@ -246,6 +272,7 @@ void AbstractProcessStep::cleanUp(QProcess *process)
     processFinished(process->exitCode(), process->exitStatus());
     const bool returnValue = processSucceeded(process->exitCode(), process->exitStatus()) || d->m_ignoreReturnValue;
 
+    d->m_outputParserChain.reset();
     d->m_process.reset();
 
     // Report result
@@ -275,6 +302,9 @@ void AbstractProcessStep::processStarted()
 
 void AbstractProcessStep::processFinished(int exitCode, QProcess::ExitStatus status)
 {
+    if (d->m_outputParserChain)
+        d->m_outputParserChain->flush();
+
     QString command = QDir::toNativeSeparators(d->m_param.effectiveCommand().toString());
     if (status == QProcess::NormalExit && exitCode == 0) {
         emit addOutput(tr("The process \"%1\" exited normally.").arg(command),
@@ -308,7 +338,7 @@ void AbstractProcessStep::processStartupFailed()
 
 bool AbstractProcessStep::processSucceeded(int exitCode, QProcess::ExitStatus status)
 {
-    if (d->outputFormatter->hasFatalErrors())
+    if (outputParser() && outputParser()->hasFatalErrors())
         return false;
 
     return exitCode == 0 && status == QProcess::NormalExit;
@@ -318,7 +348,43 @@ void AbstractProcessStep::processReadyReadStdOutput()
 {
     if (!d->m_process)
         return;
-    stdOutput(d->stdoutStream->toUnicode(d->m_process->readAllStandardOutput()));
+    d->m_process->setReadChannel(QProcess::StandardOutput);
+    BuildConfiguration *bc = buildConfiguration();
+    if (!bc)
+        bc = target()->activeBuildConfiguration();
+    const bool utf8Output = bc && bc->environment().hasKey("VSLANG");
+    d->readData(&AbstractProcessStep::stdOutput, utf8Output);
+}
+
+void AbstractProcessStep::Private::readData(void (AbstractProcessStep::*func)(const QString &),
+                                            bool isUtf8)
+{
+    while (m_process->bytesAvailable()) {
+        const bool hasLine = m_process->canReadLine();
+        const QByteArray data = hasLine ? m_process->readLine() : m_process->readAll();
+        int startPos = 0;
+        int crPos = -1;
+        while ((crPos = data.indexOf('\r', startPos)) >= 0)  {
+            if (data.size() > crPos + 1 && data.at(crPos + 1) == '\n')
+                break;
+            processLine(data.mid(startPos, crPos - startPos + 1), func, isUtf8);
+            startPos = crPos + 1;
+        }
+        if (hasLine)
+            processLine(data.mid(startPos), func, isUtf8);
+        else if (startPos < data.count())
+            deferredText += data.mid(startPos);
+    }
+}
+
+void AbstractProcessStep::Private::processLine(const QByteArray &data,
+                                               void (AbstractProcessStep::*func)(const QString &),
+                                               bool isUtf8)
+{
+    const QByteArray text = deferredText + data;
+    deferredText.clear();
+    const QString line = isUtf8 ? QString::fromUtf8(text) : QString::fromLocal8Bit(text);
+    (q->*func)(line);
 }
 
 /*!
@@ -327,16 +393,19 @@ void AbstractProcessStep::processReadyReadStdOutput()
     The default implementation adds the line to the application output window.
 */
 
-void AbstractProcessStep::stdOutput(const QString &output)
+void AbstractProcessStep::stdOutput(const QString &line)
 {
-    emit addOutput(output, BuildStep::OutputFormat::Stdout, BuildStep::DontAppendNewline);
+    if (d->m_outputParserChain)
+        d->m_outputParserChain->stdOutput(line);
+    emit addOutput(line, BuildStep::OutputFormat::Stdout, BuildStep::DontAppendNewline);
 }
 
 void AbstractProcessStep::processReadyReadStdError()
 {
     if (!d->m_process)
         return;
-    stdError(d->stderrStream->toUnicode(d->m_process->readAllStandardError()));
+    d->m_process->setReadChannel(QProcess::StandardError);
+    d->readData(&AbstractProcessStep::stdError);
 }
 
 /*!
@@ -345,14 +414,47 @@ void AbstractProcessStep::processReadyReadStdError()
     The default implementation adds the line to the application output window.
 */
 
-void AbstractProcessStep::stdError(const QString &output)
+void AbstractProcessStep::stdError(const QString &line)
 {
-    emit addOutput(output, BuildStep::OutputFormat::Stderr, BuildStep::DontAppendNewline);
+    if (d->m_outputParserChain)
+        d->m_outputParserChain->stdError(line);
+    emit addOutput(line, BuildStep::OutputFormat::Stderr, BuildStep::DontAppendNewline);
 }
 
 void AbstractProcessStep::finish(bool success)
 {
     emit finished(success);
+}
+
+void AbstractProcessStep::taskAdded(const Task &task, int linkedOutputLines, int skipLines)
+{
+    // Do not bother to report issues if we do not care about the results of
+    // the buildstep anyway:
+    if (d->m_ignoreReturnValue)
+        return;
+
+    // flush out any pending tasks before proceeding:
+    if (!d->m_skipFlush && d->m_outputParserChain) {
+        d->m_skipFlush = true;
+        d->m_outputParserChain->flush();
+        d->m_skipFlush = false;
+    }
+
+    Task editable(task);
+    QString filePath = task.file.toString();
+    if (!filePath.isEmpty() && !filePath.startsWith('<') && !QDir::isAbsolutePath(filePath)) {
+        while (filePath.startsWith("../"))
+            filePath.remove(0, 3);
+        bool found = false;
+        const Utils::FilePaths candidates
+                = d->m_fileFinder.findFile(QUrl::fromLocalFile(filePath), &found);
+        if (found && candidates.size() == 1)
+            editable.file = candidates.first();
+        else
+            qWarning() << "Could not find absolute location of file " << filePath;
+    }
+
+    emit addTask(editable, linkedOutputLines, skipLines);
 }
 
 void AbstractProcessStep::outputAdded(const QString &string, BuildStep::OutputFormat format)
@@ -365,10 +467,15 @@ void AbstractProcessStep::slotProcessFinished(int, QProcess::ExitStatus)
     QProcess *process = d->m_process.get();
     if (!process) // Happens when the process was canceled and handed over to the Reaper.
         process = qobject_cast<QProcess *>(sender()); // The process was canceled!
-    if (process) {
-        stdError(d->stderrStream->toUnicode(process->readAllStandardError()));
-        stdOutput(d->stdoutStream->toUnicode(process->readAllStandardOutput()));
-    }
+
+    const QString stdErrLine = process ? QString::fromLocal8Bit(process->readAllStandardError()) : QString();
+    for (const QString &l : stdErrLine.split('\n'))
+        stdError(l);
+
+    const QString stdOutLine = process ? QString::fromLocal8Bit(process->readAllStandardOutput()) : QString();
+    for (const QString &l : stdOutLine.split('\n'))
+        stdOutput(l);
+
     cleanUp(process);
 }
 

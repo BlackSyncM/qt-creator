@@ -176,8 +176,6 @@ Project {
             "outputformat.h",
             "outputformatter.cpp",
             "outputformatter.h",
-            "overlaywidget.cpp",
-            "overlaywidget.h",
             "overridecursor.cpp",
             "overridecursor.h",
             "parameteraction.cpp",

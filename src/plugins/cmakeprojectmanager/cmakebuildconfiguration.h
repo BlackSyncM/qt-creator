@@ -26,21 +26,30 @@
 #pragma once
 
 #include "cmakeconfigitem.h"
+#include "cmakeproject.h"
 #include "configmodel.h"
 
 #include <projectexplorer/buildconfiguration.h>
+#include <projectexplorer/buildtargetinfo.h>
+#include <projectexplorer/deploymentdata.h>
 
 namespace CMakeProjectManager {
 class CMakeProject;
 
 namespace Internal {
 
+class BuildDirManager;
 class CMakeBuildSystem;
 class CMakeBuildSettingsWidget;
 
 class CMakeBuildConfiguration final : public ProjectExplorer::BuildConfiguration
 {
     Q_OBJECT
+
+    // used in DebuggerRunConfigurationAspect
+    Q_PROPERTY(bool linkQmlDebuggingLibrary
+               READ isQmlDebuggingEnabled
+               NOTIFY configurationForCMakeChanged)
 
     friend class ProjectExplorer::BuildConfigurationFactory;
     CMakeBuildConfiguration(ProjectExplorer::Target *target, Core::Id id);
@@ -62,8 +71,8 @@ public:
     ProjectExplorer::BuildSystem *buildSystem() const final;
 
 signals:
-    void errorOccurred(const QString &message);
-    void warningOccurred(const QString &message);
+    void errorOccured(const QString &message);
+    void warningOccured(const QString &message);
 
     void configurationForCMakeChanged();
 
@@ -85,6 +94,8 @@ private:
     void setError(const QString &message);
     void setWarning(const QString &message);
 
+    bool isQmlDebuggingEnabled() const;
+
     CMakeConfig m_configurationForCMake;
     CMakeConfig m_initialConfiguration;
     QString m_error;
@@ -96,6 +107,7 @@ private:
     friend class CMakeBuildSettingsWidget;
     friend class CMakeBuildSystem;
     friend class CMakeProject;
+    friend class BuildDirManager;
 };
 
 class CMakeProjectImporter;

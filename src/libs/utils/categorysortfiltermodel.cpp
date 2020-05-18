@@ -25,8 +25,6 @@
 
 #include "categorysortfiltermodel.h"
 
-#include <QRegularExpression>
-
 namespace Utils {
 
 CategorySortFilterModel::CategorySortFilterModel(QObject *parent)
@@ -39,9 +37,9 @@ bool CategorySortFilterModel::filterAcceptsRow(int source_row,
 {
     if (!source_parent.isValid()) {
         // category items should be visible if any of its children match
-        const QRegularExpression &regexp = filterRegularExpression();
+        const QRegExp &regexp = filterRegExp();
         const QModelIndex &categoryIndex = sourceModel()->index(source_row, 0, source_parent);
-        if (regexp.match(sourceModel()->data(categoryIndex, filterRole()).toString()).hasMatch())
+        if (regexp.indexIn(sourceModel()->data(categoryIndex, filterRole()).toString()) != -1)
             return true;
         const int rowCount = sourceModel()->rowCount(categoryIndex);
         for (int row = 0; row < rowCount; ++row) {

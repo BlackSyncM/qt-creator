@@ -30,16 +30,15 @@
 #include <utils/optional.h>
 
 #include <QByteArray>
-#include <QStringList>
+#include <QList>
 
+#include <functional>
+
+namespace ProjectExplorer { class Kit; }
 namespace Utils {
 class FilePath;
 class MacroExpander;
 } // namespace Utils
-
-namespace ProjectExplorer {
-class Kit;
-}
 
 namespace CMakeProjectManager {
 

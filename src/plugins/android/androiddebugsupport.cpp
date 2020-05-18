@@ -55,7 +55,6 @@ static Q_LOGGING_CATEGORY(androidDebugSupportLog, "qtc.android.run.androiddebugs
 
 using namespace Debugger;
 using namespace ProjectExplorer;
-using namespace Utils;
 
 namespace Android {
 namespace Internal {
@@ -106,7 +105,6 @@ AndroidDebugSupport::AndroidDebugSupport(RunControl *runControl, const QString &
     : Debugger::DebuggerRunTool(runControl)
 {
     setId("AndroidDebugger");
-    setLldbPlatform("remote-android");
     m_runner = new AndroidRunner(runControl, intentName);
     addStartDependency(m_runner);
 }
@@ -125,10 +123,8 @@ void AndroidDebugSupport::start()
     qCDebug(androidDebugSupportLog) << "Start. Package name: " << packageName
                                     << "PID: " << m_runner->pid().pid();
     QtSupport::BaseQtVersion *qtVersion = QtSupport::QtKitAspect::qtVersion(kit);
-    if (!Utils::HostOsInfo::isWindowsHost()
-        && (qtVersion
-            && AndroidConfigurations::currentConfig().ndkVersion(qtVersion)
-                   >= QVersionNumber(11, 0, 0))) {
+    if (!Utils::HostOsInfo::isWindowsHost() &&
+            AndroidConfigurations::currentConfig().ndkVersion(qtVersion) >= QVersionNumber(11, 0, 0)) {
         qCDebug(androidDebugSupportLog) << "UseTargetAsync: " << true;
         setUseTargetAsync(true);
     }
@@ -150,33 +146,25 @@ void AndroidDebugSupport::start()
         setUseExtendedRemote(true);
         QString devicePreferredAbi = AndroidManager::apkDevicePreferredAbi(target);
         setAbi(AndroidManager::androidAbi2Abi(devicePreferredAbi));
-
-        QUrl debugServer;
-        debugServer.setPort(m_runner->debugServerPort().number());
-        if (cppEngineType() == LldbEngineType) {
-            debugServer.setScheme("adb");
-            debugServer.setHost(AndroidManager::deviceSerialNumber(target));
-            setRemoteChannel(debugServer.toString());
-        } else {
-            debugServer.setHost(QHostAddress(QHostAddress::LocalHost).toString());
-            setRemoteChannel(debugServer);
-        }
+        QUrl gdbServer;
+        gdbServer.setHost(QHostAddress(QHostAddress::LocalHost).toString());
+        gdbServer.setPort(m_runner->gdbServerPort().number());
+        setRemoteChannel(gdbServer);
 
         auto qt = static_cast<AndroidQtVersion *>(qtVersion);
+        QTC_CHECK(qt);
         const int minimumNdk = qt ? qt->minimumNDK() : 0;
 
         int sdkVersion = qMax(AndroidManager::minimumSDK(kit), minimumNdk);
         // TODO find a way to use the new sysroot layout
         // instead ~/android/ndk-bundle/platforms/android-29/arch-arm64
         // use ~/android/ndk-bundle/toolchains/llvm/prebuilt/linux-x86_64/sysroot
-        if (qtVersion) {
-            Utils::FilePath sysRoot = AndroidConfigurations::currentConfig().ndkLocation(qtVersion)
-                    / "platforms"
-                    / QString("android-%1").arg(sdkVersion)
-                    / devicePreferredAbi;
-            setSysRoot(sysRoot);
-            qCDebug(androidDebugSupportLog) << "Sysroot: " << sysRoot;
-        }
+        Utils::FilePath sysRoot = AndroidConfigurations::currentConfig().ndkLocation(qtVersion)
+                .pathAppended("platforms")
+                .pathAppended(QString("android-%1").arg(sdkVersion))
+                .pathAppended(devicePreferredAbi);
+        setSysRoot(sysRoot);
+        qCDebug(androidDebugSupportLog) << "Sysroot: " << sysRoot;
     }
     if (isQmlDebugging()) {
         qCDebug(androidDebugSupportLog) << "QML debugging enabled. QML server: "

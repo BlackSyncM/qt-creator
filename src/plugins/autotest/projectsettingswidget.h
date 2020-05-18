@@ -34,12 +34,10 @@ class QTreeWidget;
 class QTreeWidgetItem;
 QT_END_NAMESPACE
 
+namespace Core { class Id; }
 namespace ProjectExplorer { class Project; }
 
 namespace Autotest {
-
-class ITestFramework;
-
 namespace Internal {
 
 class TestProjectSettings;
@@ -51,7 +49,7 @@ public:
     explicit ProjectTestSettingsWidget(ProjectExplorer::Project *project,
                                        QWidget *parent = nullptr);
 private:
-    void populateFrameworks(const QMap<Autotest::ITestFramework *, bool> &frameworks);
+    void populateFrameworks(const QMap<Core::Id, bool> &frameworks);
     void onActiveFrameworkChanged(QTreeWidgetItem *item, int column);
     TestProjectSettings *m_projectSettings;
     QComboBox *m_useGlobalSettings = nullptr;

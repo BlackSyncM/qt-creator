@@ -24,17 +24,20 @@
 ****************************************************************************/
 
 #include "cmakeprojectmanager.h"
-
-#include "cmakebuildsystem.h"
+#include "cmakebuildconfiguration.h"
 #include "cmakekitinformation.h"
-#include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
+#include "cmakeproject.h"
+#include "cmakesettingspage.h"
+#include "cmaketoolmanager.h"
 #include "cmakeprojectnodes.h"
 
 #include <coreplugin/actionmanager/actioncontainer.h>
 #include <coreplugin/actionmanager/actionmanager.h>
+#include <coreplugin/actionmanager/command.h>
 #include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/editormanager/ieditor.h>
+#include <coreplugin/icore.h>
 #include <coreplugin/messagemanager.h>
 #include <projectexplorer/buildmanager.h>
 #include <projectexplorer/projectexplorer.h>
@@ -46,6 +49,8 @@
 #include <utils/parameteraction.h>
 
 #include <QAction>
+#include <QDateTime>
+#include <QIcon>
 
 using namespace ProjectExplorer;
 using namespace CMakeProjectManager::Internal;
@@ -65,12 +70,11 @@ CMakeManager::CMakeManager() :
     Core::ActionContainer *mfile =
             Core::ActionManager::actionContainer(ProjectExplorer::Constants::M_FILECONTEXT);
 
-    const Core::Context projectContext(CMakeProjectManager::Constants::CMAKE_PROJECT_ID);
+    const Core::Context projectContext(CMakeProjectManager::Constants::CMAKEPROJECT_ID);
     const Core::Context globalContext(Core::Constants::C_GLOBAL);
 
     Core::Command *command = Core::ActionManager::registerAction(m_runCMakeAction,
-                                                                 Constants::RUN_CMAKE,
-                                                                 globalContext);
+                                                                 Constants::RUNCMAKE, globalContext);
     command->setAttribute(Core::Command::CA_Hide);
     mbuild->addAction(command, ProjectExplorer::Constants::G_BUILD_DEPLOY);
     connect(m_runCMakeAction, &QAction::triggered, [this]() {
@@ -78,8 +82,7 @@ CMakeManager::CMakeManager() :
     });
 
     command = Core::ActionManager::registerAction(m_clearCMakeCacheAction,
-                                                  Constants::CLEAR_CMAKE_CACHE,
-                                                  globalContext);
+                                                  Constants::CLEARCMAKECACHE, globalContext);
     command->setAttribute(Core::Command::CA_Hide);
     mbuild->addAction(command, ProjectExplorer::Constants::G_BUILD_DEPLOY);
     connect(m_clearCMakeCacheAction, &QAction::triggered, [this]() {
@@ -87,8 +90,7 @@ CMakeManager::CMakeManager() :
     });
 
     command = Core::ActionManager::registerAction(m_runCMakeActionContextMenu,
-                                                  Constants::RUN_CMAKE_CONTEXT_MENU,
-                                                  projectContext);
+                                                  Constants::RUNCMAKECONTEXTMENU, projectContext);
     command->setAttribute(Core::Command::CA_Hide);
     mproject->addAction(command, ProjectExplorer::Constants::G_PROJECT_BUILD);
     msubproject->addAction(command, ProjectExplorer::Constants::G_PROJECT_BUILD);
@@ -98,27 +100,23 @@ CMakeManager::CMakeManager() :
 
     m_buildFileContextMenu = new QAction(tr("Build"), this);
     command = Core::ActionManager::registerAction(m_buildFileContextMenu,
-                                                  Constants::BUILD_FILE_CONTEXT_MENU,
-                                                  projectContext);
+                                                  Constants::BUILDFILECONTEXTMENU, projectContext);
     command->setAttribute(Core::Command::CA_Hide);
     mfile->addAction(command, ProjectExplorer::Constants::G_FILE_OTHER);
     connect(m_buildFileContextMenu, &QAction::triggered,
             this, &CMakeManager::buildFileContextMenu);
 
     command = Core::ActionManager::registerAction(m_rescanProjectAction,
-                                                  Constants::RESCAN_PROJECT,
-                                                  globalContext);
+                                                  Constants::RESCANPROJECT, globalContext);
     command->setAttribute(Core::Command::CA_Hide);
     mbuild->addAction(command, ProjectExplorer::Constants::G_BUILD_DEPLOY);
     connect(m_rescanProjectAction, &QAction::triggered, [this]() {
         rescanProject(ProjectTree::currentBuildSystem());
     });
 
-    m_buildFileAction = new Utils::ParameterAction(tr("Build File"),
-                                                   tr("Build File \"%1\""),
-                                                   Utils::ParameterAction::AlwaysEnabled,
-                                                   this);
-    command = Core::ActionManager::registerAction(m_buildFileAction, Constants::BUILD_FILE);
+    m_buildFileAction = new Utils::ParameterAction(tr("Build File"), tr("Build File \"%1\""),
+                                                   Utils::ParameterAction::AlwaysEnabled, this);
+    command = Core::ActionManager::registerAction(m_buildFileAction, Constants::BUILDFILE);
     command->setAttribute(Core::Command::CA_Hide);
     command->setAttribute(Core::Command::CA_UpdateText);
     command->setDescription(m_buildFileAction->text());
@@ -243,7 +241,9 @@ void CMakeManager::buildFile(Node *node)
     if (generator == "Ninja") {
         const Utils::FilePath relativeBuildDir = targetNode->buildDirectory().relativeChildPath(
                     bc->buildDirectory());
-        targetBase = relativeBuildDir / "CMakeFiles" / (targetNode->displayName() + ".dir");
+        targetBase = relativeBuildDir
+                .pathAppended("CMakeFiles")
+                .pathAppended(targetNode->displayName() + ".dir");
     } else if (!generator.contains("Makefiles")) {
         Core::MessageManager::write(tr("Build File is not supported for generator \"%1\"")
                                     .arg(generator));

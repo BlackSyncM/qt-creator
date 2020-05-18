@@ -27,8 +27,6 @@
 
 #include "../itestframework.h"
 #include "gtestconstants.h"
-#include "gtestsettings.h"
-#include "gtestsettingspage.h"
 
 namespace Autotest {
 namespace Internal {
@@ -36,21 +34,18 @@ namespace Internal {
 class GTestFramework : public ITestFramework
 {
 public:
-    GTestFramework();
-
-    static GTest::Constants::GroupMode groupMode();
-    static QString currentGTestFilter();
-
-private:
+    GTestFramework() : ITestFramework(true) {}
     const char *name() const override;
     unsigned priority() const override;
+    IFrameworkSettings *createFrameworkSettings() const override;
+    Core::IOptionsPage *createSettingsPage(QSharedPointer<IFrameworkSettings> settings) const override;
+    bool hasFrameworkSettings() const override;
+    static GTest::Constants::GroupMode groupMode();
+    static QString currentGTestFilter();
     QString groupingToolTip() const override;
-    IFrameworkSettings *frameworkSettings() override { return &m_settings; }
-    ITestParser *createTestParser() override;
-    TestTreeItem *createRootNode() override;
-
-    GTestSettings m_settings;
-    GTestSettingsPage m_settingsPage{&m_settings, settingsId()};
+protected:
+    ITestParser *createTestParser() const override;
+    TestTreeItem *createRootNode() const override;
 };
 
 } // namespace Internal

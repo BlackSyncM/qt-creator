@@ -81,19 +81,23 @@ void MakeStep::setAvailableBuildTargets(const QStringList &buildTargets)
 
 bool MakeStep::init()
 {
+    BuildConfiguration *bc = buildConfiguration();
+    if (!bc)
+        emit addTask(Task::buildConfigurationMissingTask());
+
     const CommandLine make = effectiveMakeCommand(Execution);
     if (make.executable().isEmpty())
         emit addTask(makeCommandMissingTask());
 
-    if (make.executable().isEmpty()) {
+    if (!bc || make.executable().isEmpty()) {
         emitFaultyConfigurationMessage();
         return false;
     }
 
     ProcessParameters *pp = processParameters();
-    pp->setMacroExpander(macroExpander());
-    pp->setWorkingDirectory(buildDirectory());
-    pp->setEnvironment(buildEnvironment());
+    pp->setMacroExpander(bc->macroExpander());
+    pp->setWorkingDirectory(bc->buildDirectory());
+    pp->setEnvironment(environment(bc));
     pp->setCommandLine(make);
     pp->resolveAll();
 
@@ -102,15 +106,13 @@ bool MakeStep::init()
     // That is mostly so that rebuild works on an already clean project
     setIgnoreReturnValue(isClean());
 
-    return AbstractProcessStep::init();
-}
+    setOutputParser(new GnuMakeParser());
+    IOutputParser *parser = target()->kit()->createOutputParser();
+    if (parser)
+        appendOutputParser(parser);
+    outputParser()->setWorkingDirectory(pp->effectiveWorkingDirectory().toString());
 
-void MakeStep::setupOutputFormatter(OutputFormatter *formatter)
-{
-    formatter->addLineParser(new GnuMakeParser());
-    formatter->addLineParsers(target()->kit()->createOutputParsers());
-    formatter->addSearchDir(processParameters()->effectiveWorkingDirectory());
-    AbstractProcessStep::setupOutputFormatter(formatter);
+    return AbstractProcessStep::init();
 }
 
 void MakeStep::setClean(bool clean)
@@ -151,7 +153,7 @@ FilePath MakeStep::defaultMakeCommand() const
     BuildConfiguration *bc = buildConfiguration();
     if (!bc)
         return {};
-    const Utils::Environment env = makeEnvironment();
+    const Utils::Environment env = environment(bc);
     for (const ToolChain *tc : preferredToolChains(target()->kit())) {
         FilePath make = tc->makeCommand(env);
         if (!make.isEmpty())
@@ -223,7 +225,7 @@ static Utils::optional<int> argsJobCount(const QString &str)
 
 bool MakeStep::makeflagsJobCountMismatch() const
 {
-    const Environment env = makeEnvironment();
+    const Utils::Environment env = environment(buildConfiguration());
     if (!env.hasKey(MAKEFLAGS))
         return false;
     Utils::optional<int> makeFlagsJobCount = argsJobCount(env.expandedValueForKey(MAKEFLAGS));
@@ -232,7 +234,7 @@ bool MakeStep::makeflagsJobCountMismatch() const
 
 bool MakeStep::makeflagsContainsJobCount() const
 {
-    const Environment env = makeEnvironment();
+    const Utils::Environment env = environment(buildConfiguration());
     if (!env.hasKey(MAKEFLAGS))
         return false;
     return argsJobCount(env.expandedValueForKey(MAKEFLAGS)).has_value();
@@ -243,9 +245,9 @@ bool MakeStep::userArgsContainsJobCount() const
     return argsJobCount(m_userArguments).has_value();
 }
 
-Environment MakeStep::makeEnvironment() const
+Utils::Environment MakeStep::environment(BuildConfiguration *bc) const
 {
-    Environment env = buildEnvironment();
+    Utils::Environment env = bc ? bc->environment() : Utils::Environment::systemEnvironment();
     Utils::Environment::setupEnglishOutput(&env);
     if (makeCommand().isEmpty()) {
         // We also prepend "L" to the MAKEFLAGS, so that nmake / jom are less verbose
@@ -492,10 +494,10 @@ void MakeStepConfigWidget::updateDetails()
     m_ui->disableInSubDirsCheckBox->setChecked(!m_makeStep->enabledForSubDirs());
 
     ProcessParameters param;
-    param.setMacroExpander(m_makeStep->macroExpander());
-    param.setWorkingDirectory(m_makeStep->buildDirectory());
+    param.setMacroExpander(bc->macroExpander());
+    param.setWorkingDirectory(bc->buildDirectory());
     param.setCommandLine(make);
-    param.setEnvironment(m_makeStep->buildEnvironment());
+    param.setEnvironment(m_makeStep->environment(bc));
 
     if (param.commandMissing())
         setSummaryText(tr("<b>Make:</b> %1 not found in the environment.")

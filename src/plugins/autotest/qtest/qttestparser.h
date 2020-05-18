@@ -33,7 +33,7 @@ namespace Internal {
 class QtTestParseResult : public TestParseResult
 {
 public:
-    explicit QtTestParseResult(ITestFramework *framework) : TestParseResult(framework) {}
+    explicit QtTestParseResult(const Core::Id &id) : TestParseResult(id) {}
     void setInherited(bool inherited) { m_inherited = inherited; }
     bool inherited() const { return m_inherited; }
     TestTreeItem *createTestTreeItem() const override;
@@ -44,8 +44,6 @@ private:
 class QtTestParser : public CppParser
 {
 public:
-    explicit QtTestParser(ITestFramework *framework) : CppParser(framework) {}
-
     void init(const QStringList &filesToParse, bool fullParse) override;
     void release() override;
     bool processDocument(QFutureInterface<TestParseResultPtr> futureInterface,

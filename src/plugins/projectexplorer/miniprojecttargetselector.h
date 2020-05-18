@@ -38,6 +38,7 @@ class Project;
 class Target;
 class BuildConfiguration;
 class DeployConfiguration;
+class ProjectConfiguration;
 class RunConfiguration;
 
 namespace Internal {
@@ -50,8 +51,7 @@ class MiniProjectTargetSelector : public QWidget
     Q_OBJECT
 
 public:
-    explicit MiniProjectTargetSelector(QAction *projectAction, QWidget *parent);
-
+    explicit MiniProjectTargetSelector(QAction *projectAction, QWidget *parent = nullptr);
     void setVisible(bool visible) override;
 
     void keyPressEvent(QKeyEvent *ke) override;
@@ -62,10 +62,11 @@ public:
     void nextOrShow();
 
 private:
-    friend class ProjectExplorer::Target;
     void projectAdded(ProjectExplorer::Project *project);
     void projectRemoved(ProjectExplorer::Project *project);
+    void handleNewProjectConfiguration(ProjectExplorer::ProjectConfiguration *pc);
     void handleNewTarget(Target *target);
+    void handleRemovalOfProjectConfiguration(ProjectExplorer::ProjectConfiguration *pc);
     void handleRemovalOfTarget(Target *pc);
 
     void changeStartupProject(ProjectExplorer::Project *project);
@@ -80,12 +81,12 @@ private:
     void switchToProjectsMode();
     void addedTarget(Target *target);
     void removedTarget(Target *target);
-    void addedBuildConfiguration(BuildConfiguration *bc, bool update = true);
-    void removedBuildConfiguration(BuildConfiguration *bc, bool update = true);
-    void addedDeployConfiguration(DeployConfiguration *dc, bool update = true);
-    void removedDeployConfiguration(DeployConfiguration *dc, bool update = true);
-    void addedRunConfiguration(RunConfiguration *rc, bool update = true);
-    void removedRunConfiguration(RunConfiguration *rc, bool update = true);
+    bool addedBuildConfiguration(BuildConfiguration* bc);
+    bool removedBuildConfiguration(BuildConfiguration* bc);
+    bool addedDeployConfiguration(DeployConfiguration *dc);
+    bool removedDeployConfiguration(DeployConfiguration *dc);
+    bool addedRunConfiguration(RunConfiguration *rc);
+    bool removedRunConfiguration(RunConfiguration *rc);
 
     void updateProjectListVisible();
     void updateTargetListVisible();

@@ -101,8 +101,6 @@ BehaviorSettingsWidget::BehaviorSettingsWidget(QWidget *parent)
             this, &BehaviorSettingsWidget::slotStorageSettingsChanged);
     connect(d->m_ui.cleanIndentation, &QAbstractButton::clicked,
             this, &BehaviorSettingsWidget::slotStorageSettingsChanged);
-    connect(d->m_ui.skipTrailingWhitespace, &QAbstractButton::clicked,
-            this, &BehaviorSettingsWidget::slotStorageSettingsChanged);
     connect(d->m_ui.mouseHiding, &QAbstractButton::clicked,
             this, &BehaviorSettingsWidget::slotBehaviorSettingsChanged);
     connect(d->m_ui.mouseNavigation, &QAbstractButton::clicked,
@@ -192,9 +190,6 @@ void BehaviorSettingsWidget::setAssignedStorageSettings(const StorageSettings &s
     d->m_ui.inEntireDocument->setChecked(storageSettings.m_inEntireDocument);
     d->m_ui.cleanIndentation->setChecked(storageSettings.m_cleanIndentation);
     d->m_ui.addFinalNewLine->setChecked(storageSettings.m_addFinalNewLine);
-    d->m_ui.skipTrailingWhitespace->setChecked(storageSettings.m_skipTrailingWhitespace);
-    d->m_ui.ignoreFileTypes->setText(storageSettings.m_ignoreFileTypes);
-    d->m_ui.ignoreFileTypes->setEnabled(d->m_ui.skipTrailingWhitespace->isChecked());
 }
 
 void BehaviorSettingsWidget::assignedStorageSettings(StorageSettings *storageSettings) const
@@ -203,8 +198,6 @@ void BehaviorSettingsWidget::assignedStorageSettings(StorageSettings *storageSet
     storageSettings->m_inEntireDocument = d->m_ui.inEntireDocument->isChecked();
     storageSettings->m_cleanIndentation = d->m_ui.cleanIndentation->isChecked();
     storageSettings->m_addFinalNewLine = d->m_ui.addFinalNewLine->isChecked();
-    storageSettings->m_skipTrailingWhitespace = d->m_ui.skipTrailingWhitespace->isChecked();
-    storageSettings->m_ignoreFileTypes = d->m_ui.ignoreFileTypes->text();
 }
 
 void BehaviorSettingsWidget::updateConstrainTooltipsBoxTooltip() const
@@ -280,10 +273,6 @@ void BehaviorSettingsWidget::slotStorageSettingsChanged()
 {
     StorageSettings settings;
     assignedStorageSettings(&settings);
-
-    bool ignoreFileTypesEnabled = d->m_ui.cleanWhitespace->isChecked() && d->m_ui.skipTrailingWhitespace->isChecked();
-    d->m_ui.ignoreFileTypes->setEnabled(ignoreFileTypesEnabled);
-
     emit storageSettingsChanged(settings);
 }
 

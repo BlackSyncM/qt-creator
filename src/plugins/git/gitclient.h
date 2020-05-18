@@ -160,18 +160,12 @@ public:
                    const QStringList &stagedFileNames) const;
     void diffProject(const QString &workingDirectory,
                      const QString &projectDirectory) const;
-    void diffRepository(const QString &workingDirectory) const
-    {
-        return diffRepository(workingDirectory, {}, {});
-    }
-    void diffRepository(const QString &workingDirectory,
-                        const QString &leftCommit,
-                        const QString &rightCommit) const;
+    void diffRepository(const QString &workingDirectory);
     void diffBranch(const QString &workingDirectory,
                     const QString &branchName) const;
     void merge(const QString &workingDirectory, const QStringList &unmergedFileNames = QStringList());
 
-    void status(const QString &workingDirectory) const;
+    void status(const QString &workingDirectory);
     void log(const QString &workingDirectory, const QString &fileName = QString(),
              bool enableAnnotationContextMenu = false, const QStringList &args = QStringList());
     void reflog(const QString &workingDirectory, const QString &branch = {});
@@ -290,9 +284,9 @@ public:
                                       const QString &tracking);
 
     // git svn support (asynchronous).
-    void synchronousSubversionFetch(const QString &workingDirectory) const;
-    void subversionLog(const QString &workingDirectory) const;
-    void subversionDeltaCommit(const QString &workingDirectory) const;
+    void synchronousSubversionFetch(const QString &workingDirectory);
+    void subversionLog(const QString &workingDirectory);
+    void subversionDeltaCommit(const QString &workingDirectory);
 
     void stashPop(const QString &workingDirectory, const QString &stash = QString());
     void revert(const QStringList &files, bool revertStaging);
@@ -332,13 +326,12 @@ public:
 
     QString extendedShowDescription(const QString &workingDirectory, const QString &text) const;
 
-    void launchGitK(const QString &workingDirectory, const QString &fileName) const;
-    void launchGitK(const QString &workingDirectory) const { launchGitK(workingDirectory, QString()); }
+    void launchGitK(const QString &workingDirectory, const QString &fileName);
+    void launchGitK(const QString &workingDirectory) { launchGitK(workingDirectory, QString()); }
     bool launchGitGui(const QString &workingDirectory);
     Utils::FilePath gitBinDirectory() const;
-    bool launchGitBash(const QString &workingDirectory);
 
-    void launchRepositoryBrowser(const QString &workingDirectory) const;
+    void launchRepositoryBrowser(const QString &workingDirectory);
 
     QStringList synchronousRepositoryBranches(const QString &repositoryURL,
                                               const QString &workingDirectory = QString()) const;
@@ -361,8 +354,6 @@ public:
     VcsBase::VcsCommand *asyncUpstreamStatus(const QString &workingDirectory,
                                              const QString &branch, const QString &upstream);
 
-    static QString suggestedLocalBranchName(const QStringList existingLocalNames,
-                                            const QString trackedBranch);
     static void addChangeActions(QMenu *menu, const QString &workingDir, const QString &change);
 
 private:
@@ -395,7 +386,7 @@ private:
     bool tryLauchingGitK(const QProcessEnvironment &env,
                          const QString &workingDirectory,
                          const QString &fileName,
-                         const QString &gitBinDirectory) const;
+                         const QString &gitBinDirectory);
     bool cleanList(const QString &workingDirectory, const QString &modulePath, const QString &flag, QStringList *files, QString *errorMessage);
 
     enum ContinueCommandMode {
@@ -414,7 +405,6 @@ private:
     QString m_gitQtcEditor;
     QMap<QString, StashInfo> m_stashInfo;
     QString m_pushFallbackCommand;
-    QString m_diffCommit;
     QStringList m_updatedSubmodules;
     bool m_disableEditor;
     QFutureSynchronizer<void> m_synchronizer; // for commit updates

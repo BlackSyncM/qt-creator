@@ -45,11 +45,24 @@ using namespace Utils;
 
 namespace Nim {
 
-class NimParser : public ProjectExplorer::OutputTaskParser
+class NimParser : public ProjectExplorer::IOutputParser
 {
-    Result handleLine(const QString &lne, Utils::OutputFormat) override
+public:
+    void stdOutput(const QString &line) final
     {
-        const QString line = lne.trimmed();
+        parseLine(line.trimmed());
+        IOutputParser::stdOutput(line);
+    }
+
+    void stdError(const QString &line) final
+    {
+        parseLine(line.trimmed());
+        IOutputParser::stdError(line);
+    }
+
+private:
+    void parseLine(const QString &line)
+    {
         static QRegularExpression regex("(.+.nim)\\((\\d+), (\\d+)\\) (.+)",
                                         QRegularExpression::OptimizeOnFirstUsageOption);
         static QRegularExpression warning("(Warning):(.*)",
@@ -59,13 +72,13 @@ class NimParser : public ProjectExplorer::OutputTaskParser
 
         QRegularExpressionMatch match = regex.match(line);
         if (!match.hasMatch())
-            return Status::NotHandled;
+            return;
         const QString filename = match.captured(1);
         bool lineOk = false;
         const int lineNumber = match.captured(2).toInt(&lineOk);
         const QString message = match.captured(4);
         if (!lineOk)
-            return Status::NotHandled;
+            return;
 
         Task::TaskType type = Task::Unknown;
 
@@ -74,14 +87,9 @@ class NimParser : public ProjectExplorer::OutputTaskParser
         else if (error.match(message).hasMatch())
             type = Task::Error;
         else
-            return Status::NotHandled;
+            return;
 
-        const CompileTask t(type, message, absoluteFilePath(FilePath::fromUserInput(filename)),
-                            lineNumber);
-        LinkSpecs linkSpecs;
-        addLinkSpecForAbsoluteFilePath(linkSpecs, t.file, t.line, match, 1);
-        scheduleTask(t, 1);
-        return {Status::Done, linkSpecs};
+        emit addTask(CompileTask(type, message, FilePath::fromUserInput(filename), lineNumber));
     }
 };
 
@@ -98,17 +106,18 @@ NimCompilerBuildStep::NimCompilerBuildStep(BuildStepList *parentList, Core::Id i
             this, &NimCompilerBuildStep::updateProcessParameters);
     connect(this, &NimCompilerBuildStep::outFilePathChanged,
             bc, &NimBuildConfiguration::outFilePathChanged);
-    connect(project(), &ProjectExplorer::Project::fileListChanged,
+    connect(bc->target()->project(), &ProjectExplorer::Project::fileListChanged,
             this, &NimCompilerBuildStep::updateTargetNimFile);
     updateProcessParameters();
 }
 
-void NimCompilerBuildStep::setupOutputFormatter(OutputFormatter *formatter)
+bool NimCompilerBuildStep::init()
 {
-    formatter->addLineParser(new NimParser);
-    formatter->addLineParsers(target()->kit()->createOutputParsers());
-    formatter->addSearchDir(processParameters()->effectiveWorkingDirectory());
-    AbstractProcessStep::setupOutputFormatter(formatter);
+    setOutputParser(new NimParser());
+    if (IOutputParser *parser = target()->kit()->createOutputParser())
+        appendOutputParser(parser);
+    outputParser()->setWorkingDirectory(processParameters()->effectiveWorkingDirectory());
+    return AbstractProcessStep::init();
 }
 
 BuildStepConfigWidget *NimCompilerBuildStep::createConfigWidget()
@@ -199,13 +208,17 @@ void NimCompilerBuildStep::updateProcessParameters()
 
 void NimCompilerBuildStep::updateOutFilePath()
 {
+    auto bc = qobject_cast<NimBuildConfiguration *>(buildConfiguration());
+    QTC_ASSERT(bc, return);
     const QString targetName = Utils::HostOsInfo::withExecutableSuffix(m_targetNimFile.toFileInfo().baseName());
-    setOutFilePath(buildDirectory().pathAppended(targetName));
+    setOutFilePath(bc->buildDirectory().pathAppended(targetName));
 }
 
 void NimCompilerBuildStep::updateWorkingDirectory()
 {
-    processParameters()->setWorkingDirectory(buildDirectory());
+    auto bc = qobject_cast<NimBuildConfiguration *>(buildConfiguration());
+    QTC_ASSERT(bc, return);
+    processParameters()->setWorkingDirectory(bc->buildDirectory());
 }
 
 void NimCompilerBuildStep::updateCommand()
@@ -244,7 +257,9 @@ void NimCompilerBuildStep::updateCommand()
 
 void NimCompilerBuildStep::updateEnvironment()
 {
-    processParameters()->setEnvironment(buildEnvironment());
+    auto bc = qobject_cast<NimBuildConfiguration *>(buildConfiguration());
+    QTC_ASSERT(bc, return);
+    processParameters()->setEnvironment(bc->environment());
 }
 
 void NimCompilerBuildStep::updateTargetNimFile()
@@ -306,7 +321,7 @@ void NimPlugin::testNimParser_data()
     QTest::newRow("Parse error string")
             << QString::fromLatin1("main.nim(23, 1) Error: undeclared identifier: 'x'")
             << OutputParserTester::STDERR
-            << QString() << QString()
+            << QString("") << QString("main.nim(23, 1) Error: undeclared identifier: 'x'\n")
             << Tasks({CompileTask(Task::Error,
                                   "Error: undeclared identifier: 'x'",
                                   FilePath::fromUserInput("main.nim"), 23)})
@@ -315,7 +330,7 @@ void NimPlugin::testNimParser_data()
     QTest::newRow("Parse warning string")
             << QString::fromLatin1("lib/pure/parseopt.nim(56, 34) Warning: quoteIfContainsWhite is deprecated [Deprecated]")
             << OutputParserTester::STDERR
-            << QString() << QString()
+            << QString("") << QString("lib/pure/parseopt.nim(56, 34) Warning: quoteIfContainsWhite is deprecated [Deprecated]\n")
             << Tasks({CompileTask(Task::Warning,
                                   "Warning: quoteIfContainsWhite is deprecated [Deprecated]",
                                    FilePath::fromUserInput("lib/pure/parseopt.nim"), 56)})
@@ -325,7 +340,7 @@ void NimPlugin::testNimParser_data()
 void NimPlugin::testNimParser()
 {
     OutputParserTester testbench;
-    testbench.addLineParser(new NimParser);
+    testbench.appendOutputParser(new NimParser);
     QFETCH(QString, input);
     QFETCH(OutputParserTester::Channel, inputChannel);
     QFETCH(Tasks, tasks);

@@ -25,29 +25,12 @@
 
 #include "qdbstopapplicationstep.h"
 
-#include "qdbconstants.h"
 #include "qdbstopapplicationservice.h"
-
-#include <projectexplorer/projectexplorerconstants.h>
-
-#include <remotelinux/abstractremotelinuxdeploystep.h>
-
-using namespace ProjectExplorer;
 
 namespace Qdb {
 namespace Internal {
 
-class QdbStopApplicationStep final : public RemoteLinux::AbstractRemoteLinuxDeployStep
-{
-    Q_DECLARE_TR_FUNCTIONS(Qdb::Internal::QdbStopApplicationStep)
-
-public:
-    QdbStopApplicationStep(BuildStepList *bsl, Core::Id id);
-
-    static QString stepDisplayName() { return tr("Stop already running application"); }
-};
-
-QdbStopApplicationStep::QdbStopApplicationStep(BuildStepList *bsl, Core::Id id)
+QdbStopApplicationStep::QdbStopApplicationStep(ProjectExplorer::BuildStepList *bsl, Core::Id id)
     : AbstractRemoteLinuxDeployStep(bsl, id)
 {
     auto service = createDeployService<QdbStopApplicationService>();
@@ -58,14 +41,14 @@ QdbStopApplicationStep::QdbStopApplicationStep(BuildStepList *bsl, Core::Id id)
     setInternalInitializer([service] { return service->isDeploymentPossible(); });
 }
 
-// QdbStopApplicationStepFactory
-
-QdbStopApplicationStepFactory::QdbStopApplicationStepFactory()
+Core::Id QdbStopApplicationStep::stepId()
 {
-    registerStep<QdbStopApplicationStep>(Constants::QdbStopApplicationStepId);
-    setDisplayName(QdbStopApplicationStep::stepDisplayName());
-    setSupportedDeviceType(Constants::QdbLinuxOsType);
-    setSupportedStepList(ProjectExplorer::Constants::BUILDSTEPS_DEPLOY);
+    return "Qdb.StopApplicationStep";
+}
+
+QString QdbStopApplicationStep::stepDisplayName()
+{
+    return tr("Stop already running application");
 }
 
 } // namespace Internal

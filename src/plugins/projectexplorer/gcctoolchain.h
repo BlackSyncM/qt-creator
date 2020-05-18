@@ -66,8 +66,6 @@ inline const QStringList gccPredefinedMacrosOptions(Core::Id languageId)
 
 class PROJECTEXPLORER_EXPORT GccToolChain : public ToolChain
 {
-    Q_DECLARE_TR_FUNCTIONS(ProjectExplorer::GccToolChain)
-
 public:
     GccToolChain(Core::Id typeId);
 
@@ -94,7 +92,7 @@ public:
     void addToEnvironment(Utils::Environment &env) const override;
     Utils::FilePath makeCommand(const Utils::Environment &environment) const override;
     QStringList suggestedMkspecList() const override;
-    QList<Utils::OutputLineParser *> createOutputParsers() const override;
+    IOutputParser *outputParser() const override;
 
     QVariantMap toMap() const override;
     bool fromMap(const QVariantMap &data) override;
@@ -214,8 +212,6 @@ private:
 
 class PROJECTEXPLORER_EXPORT ClangToolChain : public GccToolChain
 {
-    Q_DECLARE_TR_FUNCTIONS(ProjectExplorer::ClangToolChain)
-
 public:
     ClangToolChain();
     explicit ClangToolChain(Core::Id typeId);
@@ -226,7 +222,7 @@ public:
     Utils::LanguageExtensions languageExtensions(const QStringList &cxxflags) const override;
     Utils::WarningFlags warningFlags(const QStringList &cflags) const override;
 
-    QList<Utils::OutputLineParser *> createOutputParsers() const override;
+    IOutputParser *outputParser() const override;
 
     QStringList suggestedMkspecList() const override;
     void addToEnvironment(Utils::Environment &env) const override;
@@ -262,8 +258,6 @@ private:
 
 class PROJECTEXPLORER_EXPORT MingwToolChain : public GccToolChain
 {
-    Q_DECLARE_TR_FUNCTIONS(ProjectExplorer::MingwToolChain)
-
 public:
     Utils::FilePath makeCommand(const Utils::Environment &environment) const override;
 
@@ -282,11 +276,9 @@ private:
 
 class PROJECTEXPLORER_EXPORT LinuxIccToolChain : public GccToolChain
 {
-    Q_DECLARE_TR_FUNCTIONS(ProjectExplorer::LinuxIccToolChain)
-
 public:
     Utils::LanguageExtensions languageExtensions(const QStringList &cxxflags) const override;
-    QList<Utils::OutputLineParser *> createOutputParsers() const override;
+    IOutputParser *outputParser() const override;
 
     QStringList suggestedMkspecList() const override;
 

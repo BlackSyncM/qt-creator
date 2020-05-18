@@ -610,9 +610,9 @@ struct BKRSP {
     quint32 tickMark;
     quint64 address;
     quint32 expressionLength;
-    qint8 expressionBuffer[512];
+    qint8 expressionBuffer[1];
 };
-static_assert(sizeof(BKRSP) == 540, "BKRSP size is not 540 bytes");
+static_assert(sizeof(BKRSP) == 29, "BKRSP size is not 29 bytes");
 
 // Breakpoint change data.
 struct BKCHG {

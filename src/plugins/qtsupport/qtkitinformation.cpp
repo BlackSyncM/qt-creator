@@ -219,9 +219,8 @@ void QtKitAspect::fix(ProjectExplorer::Kit *k)
     }
 
     // Set a matching toolchain if we don't have one.
-    if (ToolChainKitAspect::cxxToolChain(k))
+    if (ToolChainKitAspect::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID))
         return;
-
     const QString spec = version->mkspec();
     QList<ToolChain *> possibleTcs = ToolChainManager::toolChains(
                 [version](const ToolChain *t) {
@@ -288,11 +287,14 @@ void QtKitAspect::addToEnvironment(const ProjectExplorer::Kit *k, Utils::Environ
         version->addToEnvironment(k, env);
 }
 
-QList<Utils::OutputLineParser *> QtKitAspect::createOutputParsers(const Kit *k) const
+ProjectExplorer::IOutputParser *QtKitAspect::createOutputParser(const ProjectExplorer::Kit *k) const
 {
-    if (qtVersion(k))
-        return {new Internal::QtTestParser, new QtParser};
-    return {};
+    if (qtVersion(k)) {
+        const auto parser = new Internal::QtTestParser;
+        parser->appendOutputParser(new QtParser);
+        return parser;
+    }
+    return nullptr;
 }
 
 class QtMacroSubProvider

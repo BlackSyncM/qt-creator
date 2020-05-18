@@ -9,8 +9,6 @@
     "icon": "../../projects/nim/icon.png",
     "enabled": "%{JS: value('Plugins').indexOf('Nim') >= 0}",
 
-    "options": { "key": "DefaultSuffix", "value": "nims" },
-
     "pages" :
     [
         {
@@ -31,7 +29,7 @@
             "data":
             {
                 "source": "file.nims",
-                "target": "%{JS: Util.fileName(value('TargetPath'), value('DefaultSuffix'))}",
+                "target": "%{JS: Util.fileName(value('TargetPath'), 'nims')}",
                 "openInEditor": true
             }
         }

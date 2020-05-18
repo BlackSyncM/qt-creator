@@ -70,8 +70,8 @@ void TestSettings::toSettings(QSettings *s) const
     s->setValue(runAfterBuildKey, int(runAfterBuild));
     // store frameworks and their current active and grouping state
     for (const Core::Id &id : frameworks.keys()) {
-        s->setValue(id.toString(), frameworks.value(id));
-        s->setValue(id.toString() + groupSuffix, frameworksGrouping.value(id));
+        s->setValue(QLatin1String(id.name()), frameworks.value(id));
+        s->setValue(QLatin1String(id.name().append(groupSuffix)), frameworksGrouping.value(id));
     }
     s->endGroup();
 }
@@ -92,16 +92,17 @@ void TestSettings::fromSettings(QSettings *s)
     runAfterBuild = RunAfterBuildMode(s->value(runAfterBuildKey,
                                                int(RunAfterBuildMode::None)).toInt());
     // try to get settings for registered frameworks
-    const TestFrameworks &registered = TestFrameworkManager::registeredFrameworks();
+    TestFrameworkManager *frameworkManager = TestFrameworkManager::instance();
+    const QList<Core::Id> &registered = frameworkManager->registeredFrameworkIds();
     frameworks.clear();
     frameworksGrouping.clear();
-    for (const ITestFramework *framework : registered) {
+    for (const Core::Id &id : registered) {
         // get their active state
-        const Core::Id id = framework->id();
-        const QString key = id.toString();
-        frameworks.insert(id, s->value(key, framework->active()).toBool());
+        frameworks.insert(id, s->value(QLatin1String(id.name()),
+                                       frameworkManager->isActive(id)).toBool());
         // and whether grouping is enabled
-        frameworksGrouping.insert(id, s->value(key + groupSuffix, framework->grouping()).toBool());
+        frameworksGrouping.insert(id, s->value(QLatin1String(id.name().append(groupSuffix)),
+                                               frameworkManager->groupingEnabled(id)).toBool());
     }
     s->endGroup();
 }

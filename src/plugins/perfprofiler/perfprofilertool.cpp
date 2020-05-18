@@ -421,8 +421,7 @@ void PerfProfilerTool::onReaderFinished()
                              tr("The profiler did not produce any samples. "
                                 "Make sure that you are running a recent Linux kernel and that "
                                 "the \"perf\" utility is available and generates useful call "
-                                "graphs.\nYou might find further explanations in the Application "
-                                "Output view."));
+                                "graphs."));
         clear();
     } else {
         m_traceManager->finalize();

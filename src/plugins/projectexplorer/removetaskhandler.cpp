@@ -42,7 +42,7 @@ QAction *RemoveTaskHandler::createAction(QObject *parent) const
 {
     QAction *removeAction = new QAction(tr("Remove", "Name of the action triggering the removetaskhandler"), parent);
     removeAction->setToolTip(tr("Remove task from the task list."));
-    removeAction->setShortcuts({QKeySequence::Delete, QKeySequence::Backspace});
+    removeAction->setShortcut(QKeySequence(QKeySequence::Delete));
     removeAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     return removeAction;
 }

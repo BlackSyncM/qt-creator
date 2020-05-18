@@ -126,6 +126,8 @@ enum eBitwiseOperator
 };
 
 namespace internal {
+const bool restoreTesting = true;
+const bool restore = false;
 const char *const closedProperty = "close";
 const char *const dirtyProperty = "dirty";
 

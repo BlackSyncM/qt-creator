@@ -1390,7 +1390,7 @@ bool HeobDialog::attach() const
 
 QString HeobDialog::path() const
 {
-    return m_pathChooser->filePath().toString();
+    return m_pathChooser->path();
 }
 
 void HeobDialog::keyPressEvent(QKeyEvent *e)
@@ -1475,7 +1475,7 @@ void HeobDialog::saveOptions()
     settings->setValue(heobLeakRecordingC, m_leakRecordingCombo->currentIndex());
     settings->setValue(heobAttachC, m_attachCheck->isChecked());
     settings->setValue(heobExtraArgsC, m_extraArgsEdit->text());
-    settings->setValue(heobPathC, m_pathChooser->filePath().toString());
+    settings->setValue(heobPathC, m_pathChooser->path());
     settings->endGroup();
 }
 

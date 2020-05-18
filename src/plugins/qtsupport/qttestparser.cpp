@@ -47,11 +47,8 @@ using namespace Utils;
 namespace QtSupport {
 namespace Internal {
 
-OutputLineParser::Result QtTestParser::handleLine(const QString &line, OutputFormat type)
+void QtTestParser::stdOutput(const QString &line)
 {
-    if (type != StdOutFormat)
-        return Status::NotHandled;
-
     const QString theLine = rightTrimmed(line);
     static const QRegularExpression triggerPattern("^(?:XPASS|FAIL!)  : .+$");
     QTC_CHECK(triggerPattern.isValid());
@@ -59,33 +56,31 @@ OutputLineParser::Result QtTestParser::handleLine(const QString &line, OutputFor
         emitCurrentTask();
         m_currentTask = Task(Task::Error, theLine, FilePath(), -1,
                              Constants::TASK_CATEGORY_AUTOTEST);
-        return Status::InProgress;
+        return;
     }
-    if (m_currentTask.isNull())
-        return Status::NotHandled;
+    if (m_currentTask.isNull()) {
+        IOutputParser::stdOutput(line);
+        return;
+    }
     static const QRegularExpression locationPattern(HostOsInfo::isWindowsHost()
         ? QString(QT_TEST_FAIL_WIN_REGEXP)
         : QString(QT_TEST_FAIL_UNIX_REGEXP));
     QTC_CHECK(locationPattern.isValid());
     const QRegularExpressionMatch match = locationPattern.match(theLine);
     if (match.hasMatch()) {
-        LinkSpecs linkSpecs;
-        m_currentTask.file = absoluteFilePath(FilePath::fromString(
-                    QDir::fromNativeSeparators(match.captured("file"))));
+        m_currentTask.file = FilePath::fromString(
+                    QDir::fromNativeSeparators(match.captured("file")));
         m_currentTask.line = match.captured("line").toInt();
-        addLinkSpecForAbsoluteFilePath(linkSpecs, m_currentTask.file, m_currentTask.line, match,
-                                       "file");
         emitCurrentTask();
-        return {Status::Done, linkSpecs};
+        return;
     }
-    m_currentTask.details.append(theLine);
-    return Status::InProgress;
+    m_currentTask.description.append('\n').append(theLine);
 }
 
 void QtTestParser::emitCurrentTask()
 {
     if (!m_currentTask.isNull()) {
-        scheduleTask(m_currentTask, 1);
+        emit taskAdded(m_currentTask);
         m_currentTask.clear();
     }
 }
@@ -94,7 +89,7 @@ void QtTestParser::emitCurrentTask()
 void QtSupportPlugin::testQtTestOutputParser()
 {
     OutputParserTester testbench;
-    testbench.addLineParser(new QtTestParser);
+    testbench.appendOutputParser(new QtTestParser);
     const QString input = "random output\n"
             "PASS   : MyTest::someTest()\n"
             "XPASS  : MyTest::someTest()\n"

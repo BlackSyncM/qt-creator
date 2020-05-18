@@ -107,11 +107,6 @@ IconShape &IconShape::operator=(const IconShape &rhs)
     return *this;
 }
 
-bool IconShape::isEmpty() const
-{
-    return d->m_shapes.isEmpty();
-}
-
 void IconShape::addLine(const ShapePointF &pos1, const ShapePointF &pos2)
 {
     d->m_shapes.append(new LineShape(pos1, pos2));

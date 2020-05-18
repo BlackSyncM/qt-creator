@@ -39,6 +39,7 @@
 #include <QFutureWatcher>
 #include <QHash>
 #include <QJsonObject>
+#include <QTimer>
 
 #include <functional>
 
@@ -148,6 +149,7 @@ private:
     QSet<Core::IDocument *> m_qbsDocuments;
     QJsonObject m_projectData; // TODO: Perhaps store this in the root project node instead?
 
+    QTimer m_parsingDelay;
     QbsProjectParser *m_qbsProjectParser = nullptr;
     QFutureInterface<bool> *m_qbsUpdateFutureInterface = nullptr;
     using TreeCreationWatcher = QFutureWatcher<QbsProjectNode *>;

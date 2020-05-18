@@ -31,7 +31,6 @@
 #include <cpptools/projectinfo.h>
 
 #include <projectexplorer/buildconfiguration.h>
-#include <projectexplorer/buildsystem.h>
 #include <projectexplorer/buildtargetinfo.h>
 #include <projectexplorer/deploymentdata.h>
 #include <projectexplorer/environmentaspect.h>
@@ -48,11 +47,6 @@ using namespace ProjectExplorer;
 using namespace Utils;
 
 namespace Autotest {
-
-TestConfiguration::TestConfiguration(ITestFramework *framework)
-    : m_framework(framework)
-{
-}
 
 TestConfiguration::~TestConfiguration()
 {
@@ -143,9 +137,8 @@ void TestConfiguration::completeTestInformation(TestRunMode runMode)
 
     const QSet<QString> buildSystemTargets = m_buildTargets;
     qCDebug(LOG) << "BuildSystemTargets\n    " << buildSystemTargets;
-    const QList<BuildTargetInfo> buildTargets = target->buildSystem()->applicationTargets();
     BuildTargetInfo targetInfo
-            = Utils::findOrDefault(buildTargets,
+            = Utils::findOrDefault(target->applicationTargets(),
                                    [&buildSystemTargets] (const BuildTargetInfo &bti) {
         return buildSystemTargets.contains(bti.buildKey);
     });
@@ -153,6 +146,7 @@ void TestConfiguration::completeTestInformation(TestRunMode runMode)
     // there would be no BuildTargetInfo that could match
     if (targetInfo.targetFilePath.isEmpty()) {
         qCDebug(LOG) << "BuildTargetInfos";
+        const QList<BuildTargetInfo> buildTargets = target->applicationTargets();
         // if there is only one build target just use it (but be honest that we're deducing)
         if (buildTargets.size() == 1) {
             targetInfo = buildTargets.first();
@@ -354,11 +348,6 @@ bool DebuggableTestConfiguration::isDebugRunMode() const
 bool TestConfiguration::hasExecutable() const
 {
     return !m_runnable.executable.isEmpty();
-}
-
-ITestFramework *TestConfiguration::framework() const
-{
-    return m_framework;
 }
 
 } // namespace Autotest

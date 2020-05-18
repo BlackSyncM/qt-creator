@@ -76,9 +76,7 @@ TestNavigationWidget::TestNavigationWidget(QWidget *parent) :
     QHBoxLayout *hLayout = new QHBoxLayout;
     m_missingFrameworksWidget->setLayout(hLayout);
     hLayout->addWidget(new QLabel(tr("No active test frameworks.")));
-    const bool hasActiveFrameworks = Utils::anyOf(TestFrameworkManager::registeredFrameworks(),
-                                                  &ITestFramework::active);
-    m_missingFrameworksWidget->setVisible(!hasActiveFrameworks);
+    m_missingFrameworksWidget->setVisible(!TestFrameworkManager::instance()->hasActiveFrameworks());
     QVBoxLayout *layout = new QVBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);

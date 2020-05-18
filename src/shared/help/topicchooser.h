@@ -42,7 +42,7 @@ class TopicChooser : public QDialog
 
 public:
     TopicChooser(QWidget *parent, const QString &keyword,
-        const QMultiMap<QString, QUrl> &links);
+        const QMap<QString, QUrl> &links);
 
     QUrl link() const;
 

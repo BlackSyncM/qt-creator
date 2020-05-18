@@ -57,9 +57,7 @@ public:
         , m_filePathCache(filePathCache)
         , m_clangPathwatcher(clangPathwatcher)
         , m_generatedFiles(generatedFiles)
-    {
-        Q_UNUSED(m_filePathCache)
-    }
+    {}
 
     UpToDataProjectParts update(ProjectPartContainers &&projectsParts) override;
     void remove(const ProjectPartIds &projectPartIds) override;

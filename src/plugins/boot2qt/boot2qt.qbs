@@ -23,6 +23,8 @@ QtcPlugin {
             "qdb_global.h",
             "qdbdeployconfigurationfactory.cpp",
             "qdbdeployconfigurationfactory.h",
+            "qdbdeploystepfactory.cpp",
+            "qdbdeploystepfactory.h",
             "qdbdevice.cpp",
             "qdbdevice.h",
             "qdbdevicedebugsupport.cpp",

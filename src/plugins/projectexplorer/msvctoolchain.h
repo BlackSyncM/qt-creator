@@ -53,8 +53,6 @@ namespace Internal {
 
 class MsvcToolChain : public ToolChain
 {
-    Q_DECLARE_TR_FUNCTIONS(ProjectExplorer::Internal::MsvcToolChain)
-
 public:
     enum Type { WindowsSDK, VS };
     enum Platform { x86, amd64, x86_amd64, ia64, x86_ia64, arm, x86_arm, amd64_arm, amd64_x86 };
@@ -63,6 +61,7 @@ public:
     ~MsvcToolChain() override;
 
     Abi targetAbi() const override;
+    Abis supportedAbis() const override;
     void setTargetAbi(const Abi &abi);
 
     bool isValid() const override;
@@ -89,7 +88,7 @@ public:
 
     Utils::FilePath makeCommand(const Utils::Environment &environment) const override;
     Utils::FilePath compilerCommand() const override;
-    QList<Utils::OutputLineParser *> createOutputParsers() const override;
+    IOutputParser *outputParser() const override;
 
     QString varsBatArg() const { return m_varsBatArg; }
     QString varsBat() const { return m_vcvarsBat; }
@@ -147,6 +146,7 @@ protected:
 private:
     void updateEnvironmentModifications(Utils::EnvironmentItems modifications);
     void rescanForCompiler();
+    void detectInstalledAbis();
 
     mutable Utils::EnvironmentItems m_environmentModifications;
     mutable QFutureWatcher<GenerateEnvResult> m_envModWatcher;
@@ -158,6 +158,7 @@ private:
 
 protected:
     Abi m_abi;
+    Abis m_supportedAbis;
 
     QString m_vcvarsBat;
     QString m_varsBatArg; // Argument
@@ -165,8 +166,6 @@ protected:
 
 class PROJECTEXPLORER_EXPORT ClangClToolChain : public MsvcToolChain
 {
-    Q_DECLARE_TR_FUNCTIONS(ProjectExplorer::Internal::ClangClToolChain)
-
 public:
     ClangClToolChain();
 
@@ -174,7 +173,7 @@ public:
     QStringList suggestedMkspecList() const override;
     void addToEnvironment(Utils::Environment &env) const override;
     Utils::FilePath compilerCommand() const override;
-    QList<Utils::OutputLineParser *> createOutputParsers() const override;
+    IOutputParser *outputParser() const override;
     QVariantMap toMap() const override;
     bool fromMap(const QVariantMap &data) override;
     std::unique_ptr<ToolChainConfigWidget> createConfigurationWidget() override;
@@ -203,6 +202,8 @@ private:
 
 class MsvcToolChainFactory : public ToolChainFactory
 {
+    Q_OBJECT
+
 public:
     MsvcToolChainFactory();
 
@@ -217,6 +218,8 @@ public:
 
 class ClangClToolChainFactory : public ToolChainFactory
 {
+    Q_OBJECT
+
 public:
     ClangClToolChainFactory();
 
@@ -268,7 +271,6 @@ private:
 
     void setFromMsvcToolChain();
 
-    void updateAbis();
     void handleVcVarsChange(const QString &vcVars);
     void handleVcVarsArchChange(const QString &arch);
 

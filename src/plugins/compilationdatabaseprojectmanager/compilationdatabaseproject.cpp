@@ -52,6 +52,7 @@
 #include <utils/runextensions.h>
 
 #include <QFileDialog>
+#include <QTimer>
 
 #ifdef Q_OS_WIN
 #include <Windows.h>
@@ -338,15 +339,20 @@ void createTree(std::unique_ptr<ProjectNode> &root,
 CompilationDatabaseBuildSystem::CompilationDatabaseBuildSystem(Target *target)
     : BuildSystem(target)
     , m_cppCodeModelUpdater(std::make_unique<CppTools::CppProjectUpdater>())
+    , m_parseDelay(new QTimer(this))
     , m_deployFileWatcher(new FileSystemWatcher(this))
 {
     connect(target->project(), &CompilationDatabaseProject::rootProjectDirectoryChanged,
             this, [this] {
         m_projectFileHash.clear();
-        requestDelayedParse();
+        m_parseDelay->start();
     });
 
-    requestDelayedParse();
+    connect(m_parseDelay, &QTimer::timeout, this, &CompilationDatabaseBuildSystem::reparseProject);
+
+    m_parseDelay->setSingleShot(true);
+    m_parseDelay->setInterval(1000);
+    m_parseDelay->start();
 
     connect(project(), &Project::projectFileIsDirty, this, &CompilationDatabaseBuildSystem::reparseProject);
 
@@ -369,8 +375,8 @@ void CompilationDatabaseBuildSystem::triggerParsing()
 
 void CompilationDatabaseBuildSystem::buildTreeAndProjectParts()
 {
-    Kit *k = kit();
-    ProjectExplorer::KitInfo kitInfo(k);
+    Kit *kit = target()->kit();
+    ProjectExplorer::KitInfo kitInfo(kit);
     QTC_ASSERT(kitInfo.isValid(), return);
     // Reset toolchains to pick them based on the database entries.
     kitInfo.cToolChain = nullptr;
@@ -389,7 +395,7 @@ void CompilationDatabaseBuildSystem::buildTreeAndProjectParts()
         prevEntry = &entry;
 
         RawProjectPart rpp = makeRawProjectPart(projectFilePath(),
-                                                k,
+                                                kit,
                                                 kitInfo,
                                                 entry.workingDir,
                                                 entry.fileName,

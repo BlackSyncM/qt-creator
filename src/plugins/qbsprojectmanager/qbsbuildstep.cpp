@@ -26,6 +26,7 @@
 #include "qbsbuildstep.h"
 
 #include "qbsbuildconfiguration.h"
+#include "qbsparser.h"
 #include "qbsproject.h"
 #include "qbsprojectmanagerconstants.h"
 #include "qbssession.h"
@@ -39,7 +40,6 @@
 #include <projectexplorer/target.h>
 #include <qtsupport/qtversionmanager.h>
 #include <utils/macroexpander.h>
-#include <utils/outputformatter.h>
 #include <utils/pathchooser.h>
 #include <utils/qtcassert.h>
 #include <utils/qtcprocess.h>
@@ -60,6 +60,7 @@
 // --------------------------------------------------------------------
 
 const char QBS_CONFIG[] = "Qbs.Configuration";
+const char QBS_DRY_RUN[] = "Qbs.DryRun";
 const char QBS_KEEP_GOING[] = "Qbs.DryKeepGoing";
 const char QBS_MAXJOBCOUNT[] = "Qbs.MaxJobs";
 const char QBS_SHOWCOMMANDLINES[] = "Qbs.ShowCommandLines";
@@ -155,6 +156,7 @@ QbsBuildStep::~QbsBuildStep()
     doCancel();
     if (m_session)
         m_session->disconnect(this);
+    delete m_parser;
 }
 
 bool QbsBuildStep::init()
@@ -167,17 +169,23 @@ bool QbsBuildStep::init()
     if (!bc)
         return false;
 
+    delete m_parser;
+    m_parser = new Internal::QbsParser;
+    ProjectExplorer::IOutputParser *parser = target()->kit()->createOutputParser();
+    if (parser)
+        m_parser->appendOutputParser(parser);
+
     m_changedFiles = bc->changedFiles();
     m_activeFileTags = bc->activeFileTags();
     m_products = bc->products();
 
-    return true;
-}
+    connect(m_parser, &ProjectExplorer::IOutputParser::addOutput,
+            this, [this](const QString &string, ProjectExplorer::BuildStep::OutputFormat format) {
+        emit addOutput(string, format);
+    });
+    connect(m_parser, &ProjectExplorer::IOutputParser::addTask, this, &QbsBuildStep::addTask);
 
-void QbsBuildStep::setupOutputFormatter(OutputFormatter *formatter)
-{
-    formatter->addLineParsers(target()->kit()->createOutputParsers());
-    BuildStep::setupOutputFormatter(formatter);
+    return true;
 }
 
 void QbsBuildStep::doRun()
@@ -226,7 +234,7 @@ QVariantMap QbsBuildStep::qbsConfiguration(VariableHandling variableHandling) co
           Constants::QBS_CONFIG_QUICK_COMPILER_KEY);
 
     if (variableHandling == ExpandVariables) {
-        const MacroExpander * const expander = macroExpander();
+        const MacroExpander * const expander = buildConfiguration()->macroExpander();
         for (auto it = config.begin(), end = config.end(); it != end; ++it) {
             const QString rawString = it.value().toString();
             const QString expandedString = expander->expand(rawString);
@@ -265,7 +273,7 @@ Utils::FilePath QbsBuildStep::installRoot(VariableHandling variableHandling) con
         return Utils::FilePath::fromString(root);
     QString defaultInstallDir = QbsSettings::defaultInstallDirTemplate();
     if (variableHandling == VariableHandling::ExpandVariables)
-        defaultInstallDir = macroExpander()->expand(defaultInstallDir);
+        defaultInstallDir = buildConfiguration()->macroExpander()->expand(defaultInstallDir);
     return FilePath::fromString(defaultInstallDir);
 }
 
@@ -371,24 +379,29 @@ void QbsBuildStep::handleProcessResult(
         const QStringList &stdErr,
         bool success)
 {
-    Q_UNUSED(workingDir);
     const bool hasOutput = !stdOut.isEmpty() || !stdErr.isEmpty();
     if (success && !hasOutput)
         return;
 
+    m_parser->setWorkingDirectory(workingDir.toString());
     emit addOutput(executable.toUserOutput() + ' '  + QtcProcess::joinArgs(arguments),
                    OutputFormat::Stdout);
-    for (const QString &line : stdErr)
+    for (const QString &line : stdErr) {
+        m_parser->stdError(line);
         emit addOutput(line, OutputFormat::Stderr);
-    for (const QString &line : stdOut)
+    }
+    for (const QString &line : stdOut) {
+        m_parser->stdOutput(line);
         emit addOutput(line, OutputFormat::Stdout);
+    }
+    m_parser->flush();
 }
 
 void QbsBuildStep::createTaskAndOutput(ProjectExplorer::Task::TaskType type, const QString &message,
                                        const QString &file, int line)
 {
-    emit addOutput(message, OutputFormat::Stdout);
     emit addTask(CompileTask(type, message, FilePath::fromString(file), line), 1);
+    emit addOutput(message, OutputFormat::Stdout);
 }
 
 QString QbsBuildStep::buildVariant() const
@@ -398,7 +411,7 @@ QString QbsBuildStep::buildVariant() const
 
 QbsBuildSystem *QbsBuildStep::qbsBuildSystem() const
 {
-    return static_cast<QbsBuildSystem *>(buildSystem());
+    return static_cast<QbsBuildSystem *>(buildConfiguration()->buildSystem());
 }
 
 void QbsBuildStep::setBuildVariant(const QString &variant)
@@ -640,7 +653,9 @@ QbsBuildStepConfigWidget::QbsBuildStepConfigWidget(QbsBuildStep *step) :
     auto chooser = new Core::VariableChooser(this);
     chooser->addSupportedWidget(propertyEdit);
     chooser->addSupportedWidget(installDirChooser->lineEdit());
-    chooser->addMacroExpanderProvider([step] { return step->macroExpander(); });
+    chooser->addMacroExpanderProvider([step] {
+        return step->buildConfiguration()->macroExpander();
+    });
     propertyEdit->setValidationFunction([this](FancyLineEdit *edit, QString *errorMessage) {
         return validateProperties(edit, errorMessage);
     });
@@ -678,7 +693,7 @@ void QbsBuildStepConfigWidget::updateState()
         cleanInstallRootCheckBox->setChecked(qbsStep()->cleanInstallRoot());
         forceProbesCheckBox->setChecked(qbsStep()->forceProbes());
         updatePropertyEdit(qbsStep()->qbsConfiguration(QbsBuildStep::PreserveVariables));
-        installDirChooser->setFilePath(qbsStep()->installRoot(QbsBuildStep::PreserveVariables));
+        installDirChooser->setFileName(qbsStep()->installRoot(QbsBuildStep::PreserveVariables));
         defaultInstallDirCheckBox->setChecked(!qbsStep()->hasCustomInstallRoot());
     }
 
@@ -861,7 +876,7 @@ bool QbsBuildStepConfigWidget::validateProperties(Utils::FancyLineEdit *edit, QS
     }
 
     QList<Property> properties;
-    const MacroExpander * const expander = step()->macroExpander();
+    const MacroExpander * const expander = step()->buildConfiguration()->macroExpander();
     foreach (const QString &rawArg, argList) {
         int pos = rawArg.indexOf(':');
         if (pos > 0) {

@@ -56,20 +56,12 @@ public:
         PowerPCArchitecture,
         ShArchitecture,
         AvrArchitecture,
-        Avr32Architecture,
         XtensaArchitecture,
         Mcs51Architecture,
-        Mcs251Architecture,
         AsmJsArchitecture,
         Stm8Architecture,
         Msp430Architecture,
         Rl78Architecture,
-        C166Architecture,
-        V850Architecture,
-        Rh850Architecture,
-        RxArchitecture,
-        K78Architecture,
-        RiscVArchitecture,
         UnknownArchitecture
     };
 

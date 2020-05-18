@@ -70,7 +70,7 @@ class BareMetalPluginPrivate
 {
 public:
     IarToolChainFactory iarToolChainFactory;
-    KeilToolChainFactory keilToolChainFactory;
+    KeilToolchainFactory keilToolChainFactory;
     SdccToolChainFactory sdccToolChainFactory;
     BareMetalDeviceFactory deviceFactory;
     BareMetalRunConfigurationFactory runConfigurationFactory;

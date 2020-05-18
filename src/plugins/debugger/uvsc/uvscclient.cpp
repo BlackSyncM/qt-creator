@@ -43,7 +43,7 @@ constexpr int kMaximumRegisterGroupsCount = 128;
 constexpr int kMaximumRegisterEnumsCount = 512;
 constexpr int kMaximumVarinfosCount = 256;
 constexpr int kMaximumValueBitsSize = 32;
-constexpr int kMaximumBreakpointEnumsCount = 128;
+constexpr int kMaximumBreakpointResponseSize = 1024;
 constexpr int kMaximumDisassembledBytesCount = 1024;
 
 const QEvent::Type kUvscMsgEventType = static_cast<QEvent::Type>(QEvent::User + 1);
@@ -691,41 +691,6 @@ bool UvscClient::inspectWatcher(const QStringList &expandedWatcherINames,
     return true;
 }
 
-bool UvscClient::fetchMemory(quint64 address, QByteArray &data)
-{
-    if (data.isEmpty())
-        data.resize(sizeof(quint8));
-
-    QByteArray amem = UvscUtils::encodeAmem(address, data);
-    const auto amemPtr = reinterpret_cast<AMEM *>(amem.data());
-    const UVSC_STATUS st = ::UVSC_DBG_MEM_READ(m_descriptor, amemPtr, amem.size());
-    if (st != UVSC_STATUS_SUCCESS) {
-        setError(RuntimeError);
-        return false;
-    }
-
-    data = QByteArray(reinterpret_cast<char *>(&amemPtr->bytes),
-                      amemPtr->bytesCount);
-    return true;
-}
-
-bool UvscClient::changeMemory(quint64 address, const QByteArray &data)
-{
-    if (data.isEmpty()) {
-        setError(RuntimeError);
-        return false;
-    }
-
-    QByteArray amem = UvscUtils::encodeAmem(address, data);
-    const auto amemPtr = reinterpret_cast<AMEM *>(amem.data());
-    const UVSC_STATUS st = ::UVSC_DBG_MEM_WRITE(m_descriptor, amemPtr, amem.size());
-    if (st != UVSC_STATUS_SUCCESS) {
-        setError(RuntimeError);
-        return false;
-    }
-    return true;
-}
-
 bool UvscClient::disassemblyAddress(quint64 address, QByteArray &result)
 {
     if (!checkConnection())
@@ -799,32 +764,22 @@ bool UvscClient::createBreakpoint(const QString &exp, quint32 &tickMark, quint64
     if (!checkConnection())
         return false;
 
-    // Magic workaround to prevent the stalling.
-    if (!controlHiddenBreakpoint(exp))
+    QByteArray bkparm = UvscUtils::encodeBreakPoint(BRKTYPE_EXEC, exp);
+    QByteArray bkrsp(kMaximumBreakpointResponseSize, 0);
+    qint32 bkrspLength = bkrsp.size();
+    const UVSC_STATUS st = ::UVSC_DBG_CREATE_BP(m_descriptor,
+                                                reinterpret_cast<BKPARM *>(bkparm.data()),
+                                                bkparm.size(),
+                                                reinterpret_cast<BKRSP *>(bkrsp.data()),
+                                                &bkrspLength);
+    if (st != UVSC_STATUS_SUCCESS) {
+        setError(RuntimeError);
         return false;
+    }
 
-    // Execute command to create the BP.
-    const QString setCmd = QStringLiteral("BS %1").arg(exp);
-    QString setCmdOutput;
-    if (!executeCommand(setCmd, setCmdOutput))
-        return false;
-
-    std::vector<BKRSP> bpenums;
-    if (!enumerateBreakpoints(bpenums))
-        return false;
-
-    const auto bpenumBegin = bpenums.cbegin();
-    const auto bpenumEnd = bpenums.cend();
-    const auto bpenumIt = std::find_if(bpenumBegin, bpenumEnd, [exp](const BKRSP &bpenum) {
-        const QString bpexp = QString::fromLatin1(reinterpret_cast<const char *>(bpenum.expressionBuffer),
-                                                  bpenum.expressionLength).trimmed();
-        return bpexp.contains(exp);
-    });
-    if (bpenumIt == bpenumEnd)
-        return false;
-
-    tickMark = bpenumIt->tickMark;
-    address = bpenumIt->address;
+    const auto bkrspPtr = reinterpret_cast<const BKRSP *>(bkrsp.constData());
+    tickMark = bkrspPtr->tickMark;
+    address = bkrspPtr->address;
 
     if (!addressToFileLine(address, fileName, function, line))
         return false;
@@ -839,9 +794,11 @@ bool UvscClient::deleteBreakpoint(quint32 tickMark)
     BKCHG bkchg = {};
     bkchg.type = CHG_KILLBP;
     bkchg.tickMark = tickMark;
-    BKRSP bkrsp = {};
-    qint32 bkrspLength = sizeof(bkrsp);
-    const UVSC_STATUS st = ::UVSC_DBG_CHANGE_BP(m_descriptor, &bkchg, sizeof(bkchg), &bkrsp, &bkrspLength);
+    QByteArray bkrsp(kMaximumBreakpointResponseSize, 0);
+    qint32 bkrspLength = bkrsp.size();
+    const UVSC_STATUS st = ::UVSC_DBG_CHANGE_BP(m_descriptor, &bkchg, sizeof(bkchg),
+                                                reinterpret_cast<BKRSP *>(bkrsp.data()),
+                                                &bkrspLength);
     if (st != UVSC_STATUS_SUCCESS) {
         setError(RuntimeError);
         return false;
@@ -857,9 +814,11 @@ bool UvscClient::enableBreakpoint(quint32 tickMark)
     BKCHG bkchg = {};
     bkchg.type = CHG_ENABLEBP;
     bkchg.tickMark = tickMark;
-    BKRSP bkrsp = {};
-    qint32 bkrspLength = sizeof(bkrsp);
-    const UVSC_STATUS st = ::UVSC_DBG_CHANGE_BP(m_descriptor, &bkchg, sizeof(bkchg), &bkrsp, &bkrspLength);
+    QByteArray bkrsp(kMaximumBreakpointResponseSize, 0);
+    qint32 bkrspLength = bkrsp.size();
+    const UVSC_STATUS st = ::UVSC_DBG_CHANGE_BP(m_descriptor, &bkchg, sizeof(bkchg),
+                                                reinterpret_cast<BKRSP *>(bkrsp.data()),
+                                                &bkrspLength);
     if (st != UVSC_STATUS_SUCCESS) {
         setError(RuntimeError);
         return false;
@@ -875,76 +834,15 @@ bool UvscClient::disableBreakpoint(quint32 tickMark)
     BKCHG bkchg = {};
     bkchg.type = CHG_DISABLEBP;
     bkchg.tickMark = tickMark;
-    BKRSP bkrsp = {};
-    qint32 bkrspLength = sizeof(bkrsp);
-    const UVSC_STATUS st = ::UVSC_DBG_CHANGE_BP(m_descriptor, &bkchg, sizeof(bkchg), &bkrsp, &bkrspLength);
+    QByteArray bkrsp(kMaximumBreakpointResponseSize, 0);
+    qint32 bkrspLength = bkrsp.size();
+    const UVSC_STATUS st = ::UVSC_DBG_CHANGE_BP(m_descriptor, &bkchg, sizeof(bkchg),
+                                                reinterpret_cast<BKRSP *>(bkrsp.data()),
+                                                &bkrspLength);
     if (st != UVSC_STATUS_SUCCESS) {
         setError(RuntimeError);
         return false;
     }
-    return true;
-}
-
-bool UvscClient::controlHiddenBreakpoint(const QString &exp)
-{
-    if (!checkConnection())
-        return false;
-
-    // It is a magic workaround to prevent the UVSC bug when the break-point
-    // creation may stall. A problem is that sometime the UVSC_DBG_CREATE_BP
-    // function blocks and returns then with the timeout error when the original
-    // break-point contains the full expression including the line number.
-    //
-    // It can be avoided with helps of creation and then deletion of the
-    // 'fake hidden' break-point with the same expression excluding the line
-    // number, before creation of an original break-point.
-
-    const int slashIndex = exp.lastIndexOf('\\');
-    if (slashIndex == -1 || (slashIndex + 1) == exp.size())
-        return true;
-
-    BKRSP bkrsp = {};
-
-    const QString hiddenExp = exp.mid(0, slashIndex);
-    QByteArray bkparm = UvscUtils::encodeBreakPoint(BRKTYPE_EXEC, hiddenExp);
-    qint32 bkrspLength = sizeof(bkrsp);
-    UVSC_STATUS st = ::UVSC_DBG_CREATE_BP(m_descriptor,
-                                          reinterpret_cast<BKPARM *>(bkparm.data()),
-                                          bkparm.size(),
-                                          &bkrsp, &bkrspLength);
-    if (st != UVSC_STATUS_SUCCESS) {
-        setError(RuntimeError);
-        return false;
-    }
-
-    BKCHG bkchg = {};
-    bkchg.type = CHG_KILLBP;
-    bkchg.tickMark = bkrsp.tickMark;
-    bkrspLength = sizeof(bkrsp);
-    st = ::UVSC_DBG_CHANGE_BP(m_descriptor, &bkchg, sizeof(bkchg), &bkrsp, &bkrspLength);
-    if (st != UVSC_STATUS_SUCCESS) {
-        setError(RuntimeError);
-        return false;
-    }
-
-    return true;
-}
-
-bool UvscClient::enumerateBreakpoints(std::vector<BKRSP> &bpenums)
-{
-    if (!checkConnection())
-        return false;
-
-    bpenums.resize(kMaximumBreakpointEnumsCount);
-    qint32 bpenumsCount = kMaximumBreakpointEnumsCount;
-    std::vector<qint32> indexes(bpenumsCount, 0);
-    const UVSC_STATUS st = ::UVSC_DBG_ENUMERATE_BP(m_descriptor, bpenums.data(),
-                                                   indexes.data(), &bpenumsCount);
-    if (st != UVSC_STATUS_SUCCESS) {
-        setError(RuntimeError);
-        return false;
-    }
-    bpenums.resize(bpenumsCount);
     return true;
 }
 
@@ -1196,37 +1094,6 @@ bool UvscClient::addressToFileLine(quint64 address, QString &fileName,
     fileName = UvscUtils::decodeAscii(aflmapPtr->fileName + aflmapPtr->fileNameIndex);
     function = UvscUtils::decodeAscii(aflmapPtr->fileName + aflmapPtr->functionNameIndex);
     line = aflmapPtr->codeLineNumber;
-    return true;
-}
-
-bool UvscClient::executeCommand(const QString &cmd, QString &output)
-{
-    if (!checkConnection())
-        return false;
-
-    EXECCMD exeCmd = UvscUtils::encodeCommand(cmd);
-    UVSC_STATUS st = ::UVSC_DBG_EXEC_CMD(m_descriptor, &exeCmd, sizeof(exeCmd.command));
-    if (st != UVSC_STATUS_SUCCESS) {
-        setError(RuntimeError);
-        return false;
-    }
-
-    qint32 outputLength = 0;
-    st = ::UVSC_GetCmdOutputSize(m_descriptor, &outputLength);
-    if (st != UVSC_STATUS_SUCCESS) {
-        setError(RuntimeError);
-        return false;
-    }
-
-    QByteArray data(outputLength, 0);
-    st = UVSC_GetCmdOutput(m_descriptor, reinterpret_cast<qint8 *>(data.data()), data.size());
-    if (st != UVSC_STATUS_SUCCESS) {
-        setError(RuntimeError);
-        return false;
-    }
-
-    // Note: UVSC API support only ASCII!
-    output = QString::fromLatin1(data);
     return true;
 }
 

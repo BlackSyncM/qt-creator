@@ -29,7 +29,7 @@
 #include "task.h"
 
 #include <utils/qtcassert.h>
-#include <utils/temporaryfile.h>
+#include <utils/temporarydirectory.h>
 
 #include <QDir>
 #include <QFile>
@@ -54,6 +54,33 @@ GnuMakeParser::GnuMakeParser()
     QTC_CHECK(m_makeLine.isValid());
     m_errorInMakefile.setPattern(QLatin1String(MAKEFILE_PATTERN) + QLatin1String("(.*)$"));
     QTC_CHECK(m_errorInMakefile.isValid());
+}
+
+void GnuMakeParser::setWorkingDirectory(const QString &workingDirectory)
+{
+    addDirectory(workingDirectory);
+    IOutputParser::setWorkingDirectory(workingDirectory);
+}
+
+bool GnuMakeParser::hasFatalErrors() const
+{
+    return (m_fatalErrorCount > 0) || IOutputParser::hasFatalErrors();
+}
+
+void GnuMakeParser::stdOutput(const QString &line)
+{
+    const QString lne = rightTrimmed(line);
+
+    QRegularExpressionMatch match = m_makeDir.match(lne);
+    if (match.hasMatch()) {
+        if (match.captured(6) == QLatin1String("Leaving"))
+            removeDirectory(match.captured(7));
+        else
+            addDirectory(match.captured(7));
+        return;
+    }
+
+    IOutputParser::stdOutput(line);
 }
 
 class Result {
@@ -96,57 +123,78 @@ static Result parseDescription(const QString &description)
     return result;
 }
 
-void GnuMakeParser::emitTask(const ProjectExplorer::Task &task)
-{
-    if (task.type == Task::Error) // Assume that all make errors will be follow up errors.
-        m_suppressIssues = true;
-    scheduleTask(task, 1, 0);
-}
-
-OutputLineParser::Result GnuMakeParser::handleLine(const QString &line, OutputFormat type)
+void GnuMakeParser::stdError(const QString &line)
 {
     const QString lne = rightTrimmed(line);
-    if (type == StdOutFormat) {
-        QRegularExpressionMatch match = m_makeDir.match(lne);
-        if (match.hasMatch()) {
-            if (match.captured(6) == QLatin1String("Leaving"))
-                emit searchDirExpired(FilePath::fromString(match.captured(7)));
-            else
-                emit newSearchDir(FilePath::fromString(match.captured(7)));
-            return Status::Done;
-        }
-        return Status::NotHandled;
-    }
+
     QRegularExpressionMatch match = m_errorInMakefile.match(lne);
     if (match.hasMatch()) {
-        ProjectExplorer::Result res = parseDescription(match.captured(5));
+        flush();
+        Result res = parseDescription(match.captured(5));
         if (res.isFatal)
             ++m_fatalErrorCount;
-        LinkSpecs linkSpecs;
         if (!m_suppressIssues) {
-            const FilePath file = absoluteFilePath(FilePath::fromUserInput(match.captured(1)));
-            const int lineNo = match.captured(4).toInt();
-            addLinkSpecForAbsoluteFilePath(linkSpecs, file, lineNo, match, 1);
-            emitTask(BuildSystemTask(res.type, res.description, file, lineNo));
+            taskAdded(BuildSystemTask(res.type, res.description,
+                                      FilePath::fromUserInput(match.captured(1)) /* filename */,
+                                      match.captured(4).toInt() /* line */),
+                      1, 0);
         }
-        return {Status::Done, linkSpecs};
+        return;
     }
     match = m_makeLine.match(lne);
     if (match.hasMatch()) {
-        ProjectExplorer::Result res = parseDescription(match.captured(6));
+        flush();
+        Result res = parseDescription(match.captured(6));
         if (res.isFatal)
             ++m_fatalErrorCount;
         if (!m_suppressIssues)
-            emitTask(BuildSystemTask(res.type, res.description));
-        return Status::Done;
+            taskAdded(BuildSystemTask(res.type, res.description), 1, 0);
+        return;
     }
 
-    return Status::NotHandled;
+    IOutputParser::stdError(line);
 }
 
-bool GnuMakeParser::hasFatalErrors() const
+void GnuMakeParser::addDirectory(const QString &dir)
 {
-    return m_fatalErrorCount > 0;
+    if (dir.isEmpty())
+        return;
+    m_directories.append(dir);
+}
+
+void GnuMakeParser::removeDirectory(const QString &dir)
+{
+    m_directories.removeOne(dir);
+}
+
+void GnuMakeParser::taskAdded(const Task &task, int linkedLines, int skippedLines)
+{
+    Task editable(task);
+
+    if (task.type == Task::Error) {
+        // assume that all make errors will be follow up errors:
+        m_suppressIssues = true;
+    }
+
+    QString filePath(task.file.toString());
+
+    if (!filePath.isEmpty() && !QDir::isAbsolutePath(filePath)) {
+        QFileInfoList possibleFiles;
+        foreach (const QString &dir, m_directories) {
+            QFileInfo candidate(dir + QLatin1Char('/') + filePath);
+            if (candidate.exists()
+                && !possibleFiles.contains(candidate)) {
+                possibleFiles << candidate;
+            }
+        }
+        if (possibleFiles.size() == 1)
+            editable.file = Utils::FilePath::fromFileInfo(possibleFiles.first());
+        // Let the Makestep apply additional heuristics (based on
+        // files in ther project) if we cannot uniquely
+        // identify the file!
+    }
+
+    IOutputParser::taskAdded(editable, linkedLines, skippedLines);
 }
 
 } // ProjectExplorer
@@ -161,6 +209,11 @@ bool GnuMakeParser::hasFatalErrors() const
 #   include "projectexplorerconstants.h"
 
 namespace ProjectExplorer {
+
+QStringList GnuMakeParser::searchDirectories() const
+{
+    return m_directories;
+}
 
 GnuMakeParserTester::GnuMakeParserTester(GnuMakeParser *p, QObject *parent) :
     QObject(parent),
@@ -357,7 +410,7 @@ void ProjectExplorerPlugin::testGnuMakeParserParsing()
     connect(&testbench, &OutputParserTester::aboutToDeleteParser,
             tester, &GnuMakeParserTester::parserIsAboutToBeDeleted);
 
-    testbench.addLineParser(childParser);
+    testbench.appendOutputParser(childParser);
     QFETCH(QStringList, extraSearchDirs);
     QFETCH(QString, input);
     QFETCH(OutputParserTester::Channel, inputChannel);
@@ -367,52 +420,117 @@ void ProjectExplorerPlugin::testGnuMakeParserParsing()
     QFETCH(QString, outputLines);
     QFETCH(QStringList, additionalSearchDirs);
 
-    FilePaths searchDirs = childParser->searchDirectories();
+    QStringList searchDirs = childParser->searchDirectories();
 
     // add extra directories:
     foreach (const QString &dir, extraSearchDirs)
-        testbench.addSearchDir(FilePath::fromString(dir));
+        childParser->addDirectory(dir);
 
     testbench.testParsing(input, inputChannel,
                           tasks, childStdOutLines, childStdErrLines,
                           outputLines);
 
     // make sure we still have all the original dirs
-    FilePaths newSearchDirs = tester->directories;
-    foreach (const FilePath &dir, searchDirs) {
+    QStringList newSearchDirs = tester->directories;
+    foreach (const QString &dir, searchDirs) {
         QVERIFY(newSearchDirs.contains(dir));
         newSearchDirs.removeOne(dir);
     }
 
     // make sure we have all additional dirs:
     foreach (const QString &dir, additionalSearchDirs) {
-        const FilePath fp = FilePath::fromString(dir);
-        QVERIFY(newSearchDirs.contains(fp));
-        newSearchDirs.removeOne(fp);
+        QVERIFY(newSearchDirs.contains(dir));
+        newSearchDirs.removeOne(dir);
     }
     // make sure we have no extra cruft:
     QVERIFY(newSearchDirs.isEmpty());
     delete tester;
 }
 
+void ProjectExplorerPlugin::testGnuMakeParserTaskMangling_data()
+{
+    QTest::addColumn<QStringList>("files");
+    QTest::addColumn<QStringList>("searchDirectories");
+    QTest::addColumn<Task>("inputTask");
+    QTest::addColumn<Task>("outputTask");
+
+    QTest::newRow("no filename")
+            << QStringList()
+            << QStringList()
+            << Task(CompileTask(Task::Error,
+                                "no filename, no mangling"))
+            << Task(CompileTask(Task::Error,
+                                "no filename, no mangling"));
+
+   QTest::newRow("no mangling")
+            << QStringList()
+            << QStringList()
+            << Task(CompileTask(Task::Error,
+                                "unknown filename, no mangling",
+                                FilePath::fromUserInput("some/path/unknown.cpp")))
+            << Task(CompileTask(Task::Error,
+                                 "unknown filename, no mangling",
+                                 FilePath::fromUserInput("some/path/unknown.cpp")));
+
+    QTest::newRow("find file")
+            << QStringList("test/file.cpp")
+            << QStringList("test")
+            << Task(CompileTask(Task::Error,
+                                "mangling",
+                                FilePath::fromUserInput("file.cpp"),
+                                10))
+            << Task(CompileTask(Task::Error,
+                                "mangling",
+                                FilePath::fromUserInput("$TMPDIR/test/file.cpp"),
+                                10));
+}
+
 void ProjectExplorerPlugin::testGnuMakeParserTaskMangling()
 {
-    TemporaryFile theMakeFile("Makefile.XXXXXX");
-    QVERIFY2(theMakeFile.open(), qPrintable(theMakeFile.errorString()));
-    QFileInfo fi(theMakeFile);
-    QVERIFY2(fi.fileName().startsWith("Makefile"), qPrintable(theMakeFile.fileName()));
-
     OutputParserTester testbench;
     auto *childParser = new GnuMakeParser;
-    testbench.addLineParser(childParser);
-    childParser->addSearchDir(FilePath::fromString(fi.absolutePath()));
-    testbench.testParsing(
-        fi.fileName() + ":360: *** missing separator (did you mean TAB instead of 8 spaces?). Stop.",
-        OutputParserTester::STDERR,
-        {BuildSystemTask(Task::Error,
-                         "missing separator (did you mean TAB instead of 8 spaces?). Stop.",
-                         FilePath::fromString(theMakeFile.fileName()), 360)},
-        QString(), QString(), QString());
+    testbench.appendOutputParser(childParser);
+
+    QFETCH(QStringList, files);
+    QFETCH(QStringList, searchDirectories);
+    QFETCH(Task, inputTask);
+    QFETCH(Task, outputTask);
+
+    // setup files:
+    const QString tempdir
+            = Utils::TemporaryDirectory::masterDirectoryPath() + '/' + QUuid::createUuid().toString() + '/';
+    QDir filedir(tempdir);
+    foreach (const QString &file, files) {
+        Q_ASSERT(!file.startsWith('/'));
+        Q_ASSERT(!file.contains("../"));
+
+        filedir.mkpath(file.left(file.lastIndexOf('/')));
+
+        QFile tempfile(tempdir + file);
+        if (!tempfile.open(QIODevice::WriteOnly))
+            continue;
+        tempfile.write("Delete me again!");
+        tempfile.close();
+    }
+
+    // setup search dirs:
+    foreach (const QString &dir, searchDirectories) {
+        Q_ASSERT(!dir.startsWith(QLatin1Char('/')));
+        Q_ASSERT(!dir.contains(QLatin1String("../")));
+        childParser->addDirectory(tempdir + dir);
+    }
+
+    // fix up output task file:
+    QString filePath = outputTask.file.toString();
+    if (filePath.startsWith(QLatin1String("$TMPDIR/")))
+        outputTask.file = Utils::FilePath::fromString(filePath.replace(QLatin1String("$TMPDIR/"), tempdir));
+
+    // test mangling:
+    testbench.testTaskMangling(inputTask, outputTask);
+
+    // clean up:
+    foreach (const QString &file, files)
+        filedir.rmpath(tempdir + file);
 }
 
 } // ProjectExplorer

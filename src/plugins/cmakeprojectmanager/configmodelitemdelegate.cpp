@@ -25,12 +25,14 @@
 ****************************************************************************/
 
 #include "configmodelitemdelegate.h"
-
 #include "configmodel.h"
 
 #include <utils/pathchooser.h>
 
+#include <QComboBox>
 #include <QCheckBox>
+#include <QLineEdit>
+#include <QPainter>
 
 namespace CMakeProjectManager {
 
@@ -84,7 +86,7 @@ void ConfigModelItemDelegate::setEditorData(QWidget *editor, const QModelIndex &
         ConfigModel::DataItem data = ConfigModel::dataItemFromIndex(index);
         if (data.type == ConfigModel::DataItem::FILE || data.type == ConfigModel::DataItem::DIRECTORY) {
             auto edit = static_cast<Utils::PathChooser *>(editor);
-            edit->setFilePath(Utils::FilePath::fromUserInput(data.value));
+            edit->setFileName(Utils::FilePath::fromUserInput(data.value));
             return;
         } else if (!data.values.isEmpty()) {
             auto edit = static_cast<QComboBox *>(editor);
@@ -112,7 +114,7 @@ void ConfigModelItemDelegate::setModelData(QWidget *editor, QAbstractItemModel *
         if (data.type == ConfigModel::DataItem::FILE || data.type == ConfigModel::DataItem::DIRECTORY) {
             auto edit = static_cast<Utils::PathChooser *>(editor);
             if (edit->rawPath() != data.value)
-                model->setData(index, edit->filePath().toString(), Qt::EditRole);
+                model->setData(index, edit->fileName().toString(), Qt::EditRole);
             return;
         } else if (!data.values.isEmpty()) {
             auto edit = static_cast<QComboBox *>(editor);

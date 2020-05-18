@@ -59,6 +59,8 @@ public:
 
     bool canReUseOutputPane(const SerialControl *other) const;
 
+    Utils::OutputFormatter *outputFormatter();
+
     void appendMessage(const QString &msg, Utils::OutputFormat format);
 
     QString portName() const;

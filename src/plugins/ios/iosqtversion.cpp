@@ -72,6 +72,12 @@ Abis IosQtVersion::detectQtAbis() const
     return abis;
 }
 
+void IosQtVersion::addToEnvironment(const Kit *k, Utils::Environment &env) const
+{
+    Q_UNUSED(k)
+    Q_UNUSED(env)
+}
+
 QString IosQtVersion::description() const
 {
     //: Qt Version is meant for Ios

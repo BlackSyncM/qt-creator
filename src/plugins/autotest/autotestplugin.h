@@ -29,6 +29,8 @@
 
 #include <extensionsystem/iplugin.h>
 
+#include <QMap>
+
 namespace ProjectExplorer {
 class Project;
 class RunConfiguration;
@@ -63,7 +65,7 @@ public:
     void extensionsInitialized() override;
     ShutdownFlag aboutToShutdown() override;
 
-    static TestSettings *settings();
+    static QSharedPointer<TestSettings> settings();
     static TestProjectSettings *projectSettings(ProjectExplorer::Project *project);
     static void updateMenuItemsEnabledState();
     static void cacheRunConfigChoice(const QString &buildTargetKey, const ChoicePair &choice);
@@ -73,6 +75,8 @@ public:
 
 private:
     QVector<QObject *> createTestObjects() const override;
+    class AutotestPluginPrivate *d = nullptr;
+    const QSharedPointer<TestSettings> m_settings;
 };
 
 } // namespace Internal

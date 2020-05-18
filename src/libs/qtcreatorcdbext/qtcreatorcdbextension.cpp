@@ -191,12 +191,6 @@ static inline bool isOption(const std::string &opt)
     return opt.size() == 2 && opt.at(0) == '-' && opt != "--";
 }
 
-struct CommandToken
-{
-    int majorPart = 0;
-    int minorPart = 0;
-};
-
 // Helper for commandTokens() below:
 // Simple splitting of command lines allowing for '"'-quoted tokens
 // 'typecast local.i "class QString *"' -> ('typecast','local.i','class QString *')
@@ -257,38 +251,6 @@ static inline void splitCommand(PCSTR args, Inserter it)
     }
 }
 
-// check whether arguments start with a "-t 23.1" or "-t 3" token identifier
-CommandToken extractToken(PCSTR args, PCSTR *afterToken)
-{
-    CommandToken token;
-    while (*args == ' ') // skip whitespace
-        ++args;
-    if (*args != '-')
-        return {};
-    if (*(++args) != 't')
-        return {};
-    ++args;
-    while (*args == ' ') // skip whitespace
-        ++args;
-    PSTR end = nullptr;
-    token.majorPart = strtol(args, &end, 10);
-    if (args >= end)
-        return {};
-    args = end;
-    if (*args == '.') {
-        ++args;
-        end = nullptr;
-        token.minorPart = strtol(args, &end, 10);
-        if (args >= end)
-            return {};
-        args = end;
-    }
-    while (*args == ' ') // skip whitespace
-        ++args;
-    *afterToken = args;
-    return token;
-}
-
 // Split & Parse the arguments of a command and extract the
 // optional first integer token argument ('command -t <number> remaining arguments')
 // Each command takes the 'token' argument and includes it in its output
@@ -297,25 +259,18 @@ CommandToken extractToken(PCSTR args, PCSTR *afterToken)
 template<class StringContainer>
 static inline StringContainer commandTokens(PCSTR args, int *token = 0)
 {
-    static std::map<int, std::string> s_commandBuffer;
+    typedef typename StringContainer::iterator ContainerIterator;
 
     if (token)
         *token = -1; // Handled as 'display' in engine, so that user can type commands
-
     StringContainer tokens;
-    CommandToken commandToken = extractToken(args, &args);
-    if (commandToken.majorPart != 0) {
-        s_commandBuffer[commandToken.majorPart].append(args);
-        if (commandToken.minorPart == 0) {
-            DebugPrint() << commandToken.majorPart << ':' << s_commandBuffer[commandToken.majorPart];
-            splitCommand(s_commandBuffer[commandToken.majorPart].data(), std::back_inserter(tokens));
-            if (token)
-                *token = commandToken.majorPart;
-        } else if (token) {
-            *token = 0;
-        }
-    } else {
-        splitCommand(args, std::back_inserter(tokens));
+    splitCommand(args, std::back_inserter(tokens));
+    // Check for token
+    ContainerIterator it = tokens.begin();
+    if (it != tokens.end() && *it == "-t" && ++it != tokens.end()) {
+        if (token)
+            std::istringstream(*it) >> *token;
+        tokens.erase(tokens.begin(), ++it);
     }
     return tokens;
 }
@@ -328,8 +283,6 @@ extern "C" HRESULT CALLBACK pid(CIDebugClient *client, PCSTR args)
 
     int token;
     commandTokens<StringList>(args, &token);
-    if (token == 0) // partial message
-        return S_OK;
     dprintf("Qt Creator CDB extension version 4.3 %d bit.\n",
             sizeof(void *) * 8);
     if (const ULONG pid = currentProcessId(client))
@@ -351,9 +304,6 @@ extern "C" HRESULT CALLBACK expandlocals(CIDebugClient *client, PCSTR args)
 
     int token;
     StringList tokens = commandTokens<StringList>(args, &token);
-    if (token == 0) // partial message
-        return S_OK;
-
     StringVector inames;
     bool runComplexDumpers = false;
     do {
@@ -473,12 +423,10 @@ static std::string commandLocals(ExtensionCommandContext &commandExtCtx,PCSTR ar
     typedef InameExpressionMap::value_type InameExpressionMapEntry;
 
     // Parse the command
-    StringList tokens = commandTokens<StringList>(args, token);
-    if (token == 0) // partial arguments
-        return {};
     ExtensionContext &extCtx = ExtensionContext::instance();
     DumpCommandParameters parameters;
     std::string iname;
+    StringList tokens = commandTokens<StringList>(args, token);
     StringVector expandedInames;
     StringVector uninitializedInames;
     InameExpressionMap watcherInameExpressionMap;
@@ -629,11 +577,8 @@ extern "C" HRESULT CALLBACK script(CIDebugClient *client, PCSTR argsIn)
     ExtensionCommandContext exc(client);
     int token;
 #ifdef WITH_PYTHON
-    const StringList args = commandTokens<StringList>(argsIn, &token);
-    if (token == 0) // partial arguments
-        return {};
     std::stringstream command;
-    for (std::string arg : args)
+    for (std::string arg : commandTokens<StringList>(argsIn, &token))
         command << arg << ' ';
 
     PyObject *ptype      = NULL;
@@ -649,8 +594,6 @@ extern "C" HRESULT CALLBACK script(CIDebugClient *client, PCSTR argsIn)
     PyErr_Restore(ptype, pvalue, ptraceback);
 #else
     commandTokens<StringList>(argsIn, &token);
-    if (token == 0) // partial arguments
-        return {};
     ExtensionContext::instance().report('N', token, 0, "script",
             "Python is not supported in this CDB extension.\n"
             "You need to define PYTHON_INSTALL_DIR in your creator build environment "
@@ -665,8 +608,6 @@ extern "C" HRESULT CALLBACK locals(CIDebugClient *client, PCSTR args)
     std::string errorMessage;
     int token;
     const std::string output = commandLocals(exc, args, &token, &errorMessage);
-    if (token == 0) // partial message
-        return S_OK;
     SymbolGroupValue::verbose = 0;
     if (output.empty())
         ExtensionContext::instance().report('N', token, 0, "locals", errorMessage.c_str());
@@ -684,9 +625,6 @@ static std::string commmandWatches(ExtensionCommandContext &exc, PCSTR args, int
     // Parse the command
     DumpCommandParameters parameters;
     StringList tokens = commandTokens<StringList>(args, token);
-    if (token == 0) // partial message
-        return {};
-
     // Parse away options
     for (bool optionLeft = true;  optionLeft && !tokens.empty(); ) {
         switch (parameters.parseOption(&tokens)) {
@@ -724,9 +662,6 @@ extern "C" HRESULT CALLBACK watches(CIDebugClient *client, PCSTR args)
     std::string errorMessage = "e";
     int token = 0;
     const std::string output = commmandWatches(exc, args, &token, &errorMessage);
-    if (token == 0) // partial message
-        return S_OK;
-
     SymbolGroupValue::verbose = 0;
     if (output.empty())
         ExtensionContext::instance().report('N', token, 0, "locals", errorMessage.c_str());
@@ -742,9 +677,6 @@ static std::string dumplocalHelper(ExtensionCommandContext &exc,PCSTR args, int 
 {
     // Parse the command
     StringList tokens = commandTokens<StringList>(args, token);
-    if (token == 0) // partial message
-        return {};
-
     // Frame and iname
     unsigned frame;
     if (tokens.empty() || integerFromString(tokens.front(), &frame)) {
@@ -782,9 +714,6 @@ extern "C" HRESULT CALLBACK dumplocal(CIDebugClient *client, PCSTR  argsIn)
     std::string errorMessage;
     int token = 0;
     const std::string value = dumplocalHelper(exc,argsIn, &token, &errorMessage);
-    if (token == 0) // partial message
-        return S_OK;
-
     if (value.empty())
         ExtensionContext::instance().report('N', token, 0, "dumplocal", errorMessage.c_str());
     else
@@ -804,9 +733,6 @@ extern "C" HRESULT CALLBACK typecast(CIDebugClient *client, PCSTR args)
 
     int token;
     const StringVector tokens = commandTokens<StringVector>(args, &token);
-    if (token == 0) // partial message
-        return S_OK;
-
     std::string iname;
     std::string desiredType;
     if (tokens.size() == 3u && integerFromString(tokens.front(), &frame)) {
@@ -835,9 +761,6 @@ extern "C" HRESULT CALLBACK addsymbol(CIDebugClient *client, PCSTR args)
 
     int token;
     const StringVector tokens = commandTokens<StringVector>(args, &token);
-    if (token == 0) // partial message
-        return S_OK;
-
     std::string name;
     std::string iname;
     if (tokens.size() >= 2u && integerFromString(tokens.front(), &frame)) {
@@ -867,9 +790,6 @@ extern "C" HRESULT CALLBACK addwatch(CIDebugClient *client, PCSTR argsIn)
     bool success = false;
     do {
         StringList tokens = commandTokens<StringList>(argsIn, &token);
-        if (token == 0) // partial message
-            return S_OK;
-
         if (tokens.size() != 2) {
             errorMessage = singleLineUsage(commandDescriptions[CmdAddWatch]);
             break;
@@ -983,8 +903,6 @@ extern "C" HRESULT CALLBACK threads(CIDebugClient *client, PCSTR  argsIn)
 
     int token;
     commandTokens<StringList>(argsIn, &token);
-    if (token == 0) // partial message
-        return S_OK;
 
     const std::string gdbmi = gdbmiThreadList(exc.systemObjects(),
                                               exc.symbols(),
@@ -1008,9 +926,6 @@ extern "C" HRESULT CALLBACK registers(CIDebugClient *Client, PCSTR argsIn)
 
     int token;
     const StringList tokens = commandTokens<StringList>(argsIn, &token);
-    if (token == 0) // partial message
-        return S_OK;
-
     const bool humanReadable = !tokens.empty() && tokens.front() == "-h";
     const std::string regs = gdbmiRegisters(exc.registers(), exc.control(), humanReadable, IncludePseudoRegisters, &errorMessage);
     if (regs.empty())
@@ -1030,9 +945,6 @@ extern "C" HRESULT CALLBACK modules(CIDebugClient *Client, PCSTR argsIn)
 
     int token;
     const StringList tokens = commandTokens<StringList>(argsIn, &token);
-    if (token == 0) // partial message
-        return S_OK;
-
     const bool humanReadable = !tokens.empty() && tokens.front() == "-h";
     const std::string modules = gdbmiModules(exc.symbols(), humanReadable, &errorMessage);
     if (modules.empty())
@@ -1057,9 +969,6 @@ extern "C" HRESULT CALLBACK setparameter(CIDebugClient *, PCSTR args)
 {
     int token;
     StringVector tokens = commandTokens<StringVector>(args, &token);
-    if (token == 0) // partial message
-        return S_OK;
-
     const size_t count = tokens.size();
     size_t success = 0;
     for (size_t i = 0; i < count; ++i) {
@@ -1125,9 +1034,6 @@ extern "C" HRESULT CALLBACK memory(CIDebugClient *Client, PCSTR argsIn)
     ULONG length = 0;
 
     const StringVector tokens = commandTokens<StringVector>(argsIn, &token);
-    if (token == 0) // partial message
-        return S_OK;
-
     if (tokens.size()  == 2
             && integerFromString(tokens.front(), &address)
             && integerFromString(tokens.at(1), &length)) {
@@ -1155,9 +1061,6 @@ extern "C" HRESULT CALLBACK expression(CIDebugClient *Client, PCSTR argsIn)
 
     do {
         const StringVector tokens = commandTokens<StringVector>(argsIn, &token);
-        if (token == 0) // partial message
-            return S_OK;
-
         if (tokens.size()  != 1) {
 
             errorMessage = singleLineUsage(commandDescriptions[CmdExpression]);
@@ -1187,9 +1090,6 @@ extern "C" HRESULT CALLBACK stack(CIDebugClient *Client, PCSTR argsIn)
     unsigned maxFrames = ExtensionContext::instance().parameters().maxStackDepth;
 
     StringList tokens = commandTokens<StringList>(argsIn, &token);
-    if (token == 0) // partial message
-        return S_OK;
-
     if (!tokens.empty() && tokens.front() == "-h") {
          humanReadable = true;
          tokens.pop_front();
@@ -1226,9 +1126,6 @@ extern "C" HRESULT CALLBACK qmlstack(CIDebugClient *client, PCSTR argsIn)
 
     do {
         StringList tokens = commandTokens<StringList>(argsIn, &token);
-        if (token == 0) // partial message
-            return S_OK;
-
         if (!tokens.empty() && tokens.front() == "-h") {
              humanReadable = true;
              tokens.pop_front();
@@ -1293,9 +1190,6 @@ extern "C" HRESULT CALLBACK widgetat(CIDebugClient *client, PCSTR argsIn)
         int y = -1;
 
         const StringVector tokens = commandTokens<StringVector>(argsIn, &token);
-        if (token == 0) // partial message
-            return S_OK;
-
         if (tokens.size() != 2) {
             errorMessage = singleLineUsage(commandDescriptions[CmdWidgetAt]);
             break;
@@ -1323,9 +1217,6 @@ extern "C" HRESULT CALLBACK breakpoints(CIDebugClient *client, PCSTR argsIn)
     bool humanReadable = false;
     unsigned verbose = 0;
     StringList tokens = commandTokens<StringList>(argsIn, &token);
-    if (token == 0) // partial message
-        return S_OK;
-
     while (!tokens.empty() && tokens.front().size() == 2 && tokens.front().at(0) == '-') {
         switch (tokens.front().at(1)) {
         case 'h':
@@ -1355,9 +1246,6 @@ extern "C" HRESULT CALLBACK test(CIDebugClient *client, PCSTR argsIn)
     Mode mode = Invalid;
     int token = 0;
     StringList tokens = commandTokens<StringList>(argsIn, &token);
-    if (token == 0) // partial message
-        return S_OK;
-
     // Parse away options
     while (!tokens.empty() && tokens.front().size() == 2 && tokens.front().at(0) == '-') {
         const char option = tokens.front().at(1);

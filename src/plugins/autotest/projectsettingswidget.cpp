@@ -105,16 +105,16 @@ ProjectTestSettingsWidget::ProjectTestSettingsWidget(ProjectExplorer::Project *p
             TestTreeModel::instance(), &TestTreeModel::synchronizeTestFrameworks);
 }
 
-void ProjectTestSettingsWidget::populateFrameworks(const QMap<ITestFramework *, bool> &frameworks)
+void ProjectTestSettingsWidget::populateFrameworks(const QMap<Core::Id, bool> &frameworks)
 {
-    TestFrameworks sortedFrameworks = frameworks.keys();
-    Utils::sort(sortedFrameworks, &ITestFramework::priority);
-
-    for (ITestFramework *framework : sortedFrameworks) {
-        auto item = new QTreeWidgetItem(m_activeFrameworks, QStringList(QLatin1String(framework->name())));
+    TestFrameworkManager *frameworkManager = TestFrameworkManager::instance();
+    auto end = frameworks.cend();
+    for (auto it = frameworks.cbegin(); it != end; ++it) {
+        auto *item = new QTreeWidgetItem(m_activeFrameworks,
+                                         QStringList(frameworkManager->frameworkNameForId(it.key())));
         item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
-        item->setCheckState(0, frameworks.value(framework) ? Qt::Checked : Qt::Unchecked);
-        item->setData(0, FrameworkIdRole, framework->id().toSetting());
+        item->setCheckState(0, it.value() ? Qt::Checked : Qt::Unchecked);
+        item->setData(0, FrameworkIdRole, it.key().toSetting());
     }
 }
 

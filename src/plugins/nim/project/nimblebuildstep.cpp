@@ -43,11 +43,24 @@ using namespace Utils;
 
 namespace {
 
-class NimParser : public OutputTaskParser
+class NimParser : public IOutputParser
 {
-    Result handleLine(const QString &lne, Utils::OutputFormat) override
+public:
+    void stdOutput(const QString &line) final
     {
-        const QString line = lne.trimmed();
+        parseLine(line.trimmed());
+        IOutputParser::stdOutput(line);
+    }
+
+    void stdError(const QString &line) final
+    {
+        parseLine(line.trimmed());
+        IOutputParser::stdError(line);
+    }
+
+private:
+    void parseLine(const QString &line)
+    {
         static QRegularExpression regex("(.+.nim)\\((\\d+), (\\d+)\\) (.+)",
                                         QRegularExpression::OptimizeOnFirstUsageOption);
         static QRegularExpression warning("(Warning):(.*)",
@@ -57,13 +70,13 @@ class NimParser : public OutputTaskParser
 
         QRegularExpressionMatch match = regex.match(line);
         if (!match.hasMatch())
-            return Status::NotHandled;
+            return;
         const QString filename = match.captured(1);
         bool lineOk = false;
         const int lineNumber = match.captured(2).toInt(&lineOk);
         const QString message = match.captured(4);
         if (!lineOk)
-            return Status::NotHandled;
+            return;
 
         Task::TaskType type = Task::Unknown;
 
@@ -72,14 +85,9 @@ class NimParser : public OutputTaskParser
         else if (error.match(message).hasMatch())
             type = Task::Error;
         else
-            return Status::NotHandled;
+            return;
 
-        const CompileTask t(type, message, absoluteFilePath(FilePath::fromUserInput(filename)),
-                            lineNumber);
-        LinkSpecs linkSpecs;
-        addLinkSpecForAbsoluteFilePath(linkSpecs, t.file, t.line, match, 1);
-        scheduleTask(t, 1);
-        return {Status::Done, linkSpecs};
+        emit addTask(CompileTask(type, message, FilePath::fromUserInput(filename), lineNumber));
     }
 };
 
@@ -98,20 +106,16 @@ NimbleBuildStep::NimbleBuildStep(BuildStepList *parentList, Core::Id id)
 
 bool NimbleBuildStep::init()
 {
+    auto parser = new NimParser();
+    parser->setWorkingDirectory(project()->projectDirectory());
+    setOutputParser(parser);
+
     ProcessParameters* params = processParameters();
-    params->setEnvironment(buildEnvironment());
-    params->setMacroExpander(macroExpander());
+    params->setEnvironment(buildConfiguration()->environment());
+    params->setMacroExpander(buildConfiguration()->macroExpander());
     params->setWorkingDirectory(project()->projectDirectory());
     params->setCommandLine({QStandardPaths::findExecutable("nimble"), {"build", m_arguments}});
     return AbstractProcessStep::init();
-}
-
-void NimbleBuildStep::setupOutputFormatter(OutputFormatter *formatter)
-{
-    const auto parser = new NimParser();
-    parser->addSearchDir(project()->projectDirectory());
-    formatter->addLineParser(parser);
-    AbstractProcessStep::setupOutputFormatter(formatter);
 }
 
 BuildStepConfigWidget *NimbleBuildStep::createConfigWidget()
@@ -152,12 +156,13 @@ QVariantMap NimbleBuildStep::toMap() const
 
 QString NimbleBuildStep::defaultArguments() const
 {
-    switch (buildType()) {
-    case BuildConfiguration::Debug:
+    QTC_ASSERT(buildConfiguration(), return {}; );
+    switch (buildConfiguration()->buildType()) {
+    case ProjectExplorer::BuildConfiguration::Debug:
         return {"--debugger:native"};
-    case BuildConfiguration::Unknown:
-    case BuildConfiguration::Profile:
-    case BuildConfiguration::Release:
+    case ProjectExplorer::BuildConfiguration::Unknown:
+    case ProjectExplorer::BuildConfiguration::Profile:
+    case ProjectExplorer::BuildConfiguration::Release:
     default:
         return {};
     }

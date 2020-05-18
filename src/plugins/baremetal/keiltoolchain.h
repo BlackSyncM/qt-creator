@@ -45,11 +45,11 @@ namespace ProjectExplorer { class AbiWidget; }
 namespace BareMetal {
 namespace Internal {
 
-// KeilToolChain
+// KeilToolchain
 
-class KeilToolChain final : public ProjectExplorer::ToolChain
+class KeilToolchain final : public ProjectExplorer::ToolChain
 {
-    Q_DECLARE_TR_FUNCTIONS(KeilToolChain)
+    Q_DECLARE_TR_FUNCTIONS(KeilToolchain)
 
 public:
     void setTargetAbi(const ProjectExplorer::Abi &abi);
@@ -69,7 +69,7 @@ public:
                                                     const Utils::FilePath &,
                                                     const Utils::Environment &env) const final;
     void addToEnvironment(Utils::Environment &env) const final;
-    QList<Utils::OutputLineParser *> createOutputParsers() const final;
+    ProjectExplorer::IOutputParser *outputParser() const final;
 
     QVariantMap toMap() const final;
     bool fromMap(const QVariantMap &data) final;
@@ -84,21 +84,23 @@ public:
     Utils::FilePath makeCommand(const Utils::Environment &env) const final;
 
 private:
-    KeilToolChain();
+    KeilToolchain();
 
     ProjectExplorer::Abi m_targetAbi;
     Utils::FilePath m_compilerCommand;
 
-    friend class KeilToolChainFactory;
-    friend class KeilToolChainConfigWidget;
+    friend class KeilToolchainFactory;
+    friend class KeilToolchainConfigWidget;
 };
 
 // KeilToolchainFactory
 
-class KeilToolChainFactory final : public ProjectExplorer::ToolChainFactory
+class KeilToolchainFactory final : public ProjectExplorer::ToolChainFactory
 {
+    Q_OBJECT
+
 public:
-    KeilToolChainFactory();
+    KeilToolchainFactory();
 
     QList<ProjectExplorer::ToolChain *> autoDetect(
             const QList<ProjectExplorer::ToolChain *> &alreadyKnown) final;
@@ -112,20 +114,20 @@ private:
 
 // KeilToolchainConfigWidget
 
-class KeilToolChainConfigWidget final : public ProjectExplorer::ToolChainConfigWidget
+class KeilToolchainConfigWidget final : public ProjectExplorer::ToolChainConfigWidget
 {
     Q_OBJECT
 
 public:
-    explicit KeilToolChainConfigWidget(KeilToolChain *tc);
+    explicit KeilToolchainConfigWidget(KeilToolchain *tc);
 
 private:
     void applyImpl() final;
-    void discardImpl() final { setFromToolChain(); }
+    void discardImpl() final { setFromToolchain(); }
     bool isDirtyImpl() const final;
     void makeReadOnlyImpl() final;
 
-    void setFromToolChain();
+    void setFromToolchain();
     void handleCompilerCommandChange();
 
     Utils::PathChooser *m_compilerCommand = nullptr;

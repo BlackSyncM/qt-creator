@@ -46,12 +46,8 @@ public:
     Q_FLAGS(TestState)
     Q_DECLARE_FLAGS(TestStates, TestState)
 
-    explicit GTestTreeItem(ITestFramework *framework,
-                           const QString &name = QString(),
-                           const QString &filePath = QString(),
-                           Type type = Root)
-        : TestTreeItem(framework, name, filePath, type), m_state(Enabled)
-    {}
+    explicit GTestTreeItem(const QString &name = QString(), const QString &filePath = QString(),
+                           Type type = Root) : TestTreeItem(name, filePath, type), m_state(Enabled) {}
 
     TestTreeItem *copyWithoutChildren() override;
     QVariant data(int column, int role) const override;

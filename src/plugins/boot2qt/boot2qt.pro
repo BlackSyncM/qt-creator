@@ -16,6 +16,7 @@ HEADERS += \
     qdbmakedefaultappservice.h \
     qdbstopapplicationstep.h \
     qdbstopapplicationservice.h \
+    qdbdeploystepfactory.h \
     qdbdevicedebugsupport.h \
     qdbconstants.h \
     qdb_global.h \
@@ -31,6 +32,7 @@ SOURCES += \
     qdbmakedefaultappservice.cpp \
     qdbstopapplicationstep.cpp \
     qdbstopapplicationservice.cpp \
+    qdbdeploystepfactory.cpp \
     qdbdevicedebugsupport.cpp \
     qdbplugin.cpp \
 

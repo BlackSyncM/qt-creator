@@ -85,7 +85,7 @@ private:
     AndroidSdkManager *m_sdkManager;
     int m_minApiLevel;
     QTimer m_hideTipTimer;
-    QRegularExpression m_allowedNameChars;
+    QRegExp m_allowedNameChars;
     QList<DeviceDefinitionStruct> m_deviceDefinitionsList;
     AndroidConfig m_androidConfig;
 };

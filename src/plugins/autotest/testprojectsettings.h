@@ -30,9 +30,6 @@
 #include <projectexplorer/project.h>
 
 namespace Autotest {
-
-class ITestFramework;
-
 namespace Internal {
 
 class TestProjectSettings : public QObject
@@ -46,9 +43,9 @@ public:
     bool useGlobalSettings() const { return m_useGlobalSettings; }
     void setRunAfterBuild(RunAfterBuildMode mode) {m_runAfterBuild = mode; }
     RunAfterBuildMode runAfterBuild() const { return m_runAfterBuild; }
-    void setActiveFrameworks(const QMap<ITestFramework *, bool> enabledFrameworks)
+    void setActiveFrameworks(const QMap<Core::Id, bool> enabledFrameworks)
     { m_activeTestFrameworks = enabledFrameworks; }
-    QMap<ITestFramework *, bool> activeFrameworks() const { return m_activeTestFrameworks; }
+    QMap<Core::Id, bool> activeFrameworks() const { return m_activeTestFrameworks; }
     void activateFramework(const Core::Id &id, bool activate);
 private:
     void load();
@@ -57,7 +54,7 @@ private:
     ProjectExplorer::Project *m_project;
     bool m_useGlobalSettings = true;
     RunAfterBuildMode m_runAfterBuild = RunAfterBuildMode::None;
-    QMap<ITestFramework *, bool> m_activeTestFrameworks;
+    QMap<Core::Id, bool> m_activeTestFrameworks;
 };
 
 } // namespace Internal

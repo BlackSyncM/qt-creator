@@ -8,6 +8,7 @@ add_qtc_plugin(ProjectExplorer
     addrunconfigdialog.cpp addrunconfigdialog.h
     allprojectsfilter.cpp allprojectsfilter.h
     allprojectsfind.cpp allprojectsfind.h
+    ansifilterparser.cpp ansifilterparser.h
     applicationlauncher.cpp applicationlauncher.h
     appoutputpane.cpp appoutputpane.h
     baseprojectwizarddialog.cpp baseprojectwizarddialog.h
@@ -15,6 +16,7 @@ add_qtc_plugin(ProjectExplorer
     buildpropertiessettings.h
     buildpropertiessettingspage.cpp buildpropertiessettingspage.h
     buildconfiguration.cpp buildconfiguration.h
+    buildenvironmentwidget.cpp buildenvironmentwidget.h
     buildinfo.cpp buildinfo.h
     buildmanager.cpp buildmanager.h
     buildprogress.cpp buildprogress.h
@@ -35,7 +37,6 @@ add_qtc_plugin(ProjectExplorer
     customexecutablerunconfiguration.cpp customexecutablerunconfiguration.h
     customparser.cpp customparser.h
     customparserconfigdialog.cpp customparserconfigdialog.h customparserconfigdialog.ui
-    customparserssettingspage.cpp customparserssettingspage.h
     customtoolchain.cpp customtoolchain.h
     customwizard/customwizard.cpp customwizard/customwizard.h
     customwizard/customwizardpage.cpp customwizard/customwizardpage.h

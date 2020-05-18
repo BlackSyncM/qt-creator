@@ -38,7 +38,7 @@ namespace Internal {
 
 TestTreeItem *QuickTestTreeItem::copyWithoutChildren()
 {
-    QuickTestTreeItem *copied = new QuickTestTreeItem(framework());
+    QuickTestTreeItem *copied = new QuickTestTreeItem;
     copied->copyBasicDataFrom(this);
     return copied;
 }
@@ -137,7 +137,7 @@ TestConfiguration *QuickTestTreeItem::testConfiguration() const
             if (child->type() == TestTreeItem::TestFunction)
                 testFunctions << testName + "::" + child->name();
         });
-        config = new QuickTestConfiguration(framework());
+        config = new QuickTestConfiguration;
         config->setTestCases(testFunctions);
         config->setProjectFile(proFile());
         config->setProject(project);
@@ -146,7 +146,7 @@ TestConfiguration *QuickTestTreeItem::testConfiguration() const
     case TestFunction: {
         TestTreeItem *parent = parentItem();
         QStringList testFunction(parent->name() + "::" + name());
-        config = new QuickTestConfiguration(framework());
+        config = new QuickTestConfiguration;
         config->setTestCases(testFunction);
         config->setProjectFile(parent->proFile());
         config->setProject(project);
@@ -186,7 +186,7 @@ static void testConfigurationFromCheckState(const TestTreeItem *item,
         oldFunctions << testFunctions;
         tc->setTestCases(oldFunctions);
     } else {
-        tc = new QuickTestConfiguration(item->framework());
+        tc = new QuickTestConfiguration;
         tc->setTestCases(testFunctions);
         tc->setProjectFile(item->proFile());
         tc->setProject(ProjectExplorer::SessionManager::startupProject());
@@ -244,7 +244,7 @@ QList<TestConfiguration *> QuickTestTreeItem::getAllTestConfigurations() const
     });
     // create TestConfiguration for each project file
     for (auto it = testsForProfile.begin(), end = testsForProfile.end(); it != end; ++it) {
-        QuickTestConfiguration *tc = new QuickTestConfiguration(framework());
+        QuickTestConfiguration *tc = new QuickTestConfiguration;
         tc->setTestCaseCount(it.value().testCount);
         tc->setProjectFile(it.key());
         tc->setProject(project);
@@ -318,7 +318,7 @@ TestTreeItem *QuickTestTreeItem::find(const TestParseResult *result)
     case Root:
         if (result->name.isEmpty())
             return unnamedQuickTests();
-        if (result->framework->grouping()) {
+        if (TestFrameworkManager::instance()->groupingEnabled(result->frameworkId)) {
             const QString path = QFileInfo(result->fileName).absolutePath();
             TestTreeItem *group = findFirstLevelChild([path](TestTreeItem *group) {
                     return group->filePath() == path;
@@ -404,7 +404,7 @@ TestTreeItem *QuickTestTreeItem::createParentGroupNode() const
 {
     const QFileInfo fileInfo(filePath());
     const QFileInfo base(fileInfo.absolutePath());
-    return new QuickTestTreeItem(framework(), base.baseName(), fileInfo.absolutePath(), TestTreeItem::GroupNode);
+    return new QuickTestTreeItem(base.baseName(), fileInfo.absolutePath(), TestTreeItem::GroupNode);
 }
 
 bool QuickTestTreeItem::isGroupable() const
@@ -430,10 +430,14 @@ QSet<QString> QuickTestTreeItem::internalTargets() const
 
 void QuickTestTreeItem::markForRemovalRecursively(const QString &filePath)
 {
-    auto parser = dynamic_cast<QuickTestParser *>(framework()->testParser());
+    static const Core::Id id = Core::Id(Constants::FRAMEWORK_PREFIX).withSuffix(
+                QuickTest::Constants::FRAMEWORK_NAME);
+    TestTreeItem::markForRemovalRecursively(filePath);
+    auto parser = dynamic_cast<QuickTestParser *>(TestFrameworkManager::instance()
+                                                   ->testParserForTestFramework(id));
     const QString proFile = parser->projectFileForMainCppFile(filePath);
     if (!proFile.isEmpty()) {
-        TestTreeItem *root = framework()->rootNode();
+        TestTreeItem *root = TestFrameworkManager::instance()->rootNodeForTestFramework(id);
         root->forAllChildren([proFile](TestTreeItem *it) {
             if (it->proFile() == proFile)
                 it->markForRemoval(true);

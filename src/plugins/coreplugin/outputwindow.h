@@ -30,12 +30,11 @@
 
 #include <utils/outputformat.h>
 
+#include <QElapsedTimer>
 #include <QPlainTextEdit>
+#include <QTimer>
 
-namespace Utils {
-class OutputFormatter;
-class OutputLineParser;
-}
+namespace Utils { class OutputFormatter; }
 
 namespace Core {
 
@@ -57,15 +56,15 @@ public:
     OutputWindow(Context context, const QString &settingsKey, QWidget *parent = nullptr);
     ~OutputWindow() override;
 
-    void setLineParsers(const QList<Utils::OutputLineParser *> &parsers);
-    Utils::OutputFormatter *outputFormatter() const;
+    Utils::OutputFormatter *formatter() const;
+    void setFormatter(Utils::OutputFormatter *formatter);
 
     void appendMessage(const QString &out, Utils::OutputFormat format);
+    /// appends a \p text using \p format without using formater
+    void appendText(const QString &text, const QTextCharFormat &format = QTextCharFormat());
 
     void grayOutOldContent();
     void clear();
-    void flush();
-    void reset();
 
     void scrollToBottom();
 
@@ -104,10 +103,11 @@ private:
     void wheelEvent(QWheelEvent *e) override;
 
     using QPlainTextEdit::setFont; // call setBaseFont instead, which respects the zoom factor
+    QTimer m_scrollTimer;
+    QElapsedTimer m_lastMessage;
     void enableUndoRedo();
+    QString doNewlineEnforcement(const QString &out);
     void filterNewContent();
-    void handleNextOutputChunk();
-    void handleOutputChunk(const QString &output, Utils::OutputFormat format);
 
     Internal::OutputWindowPrivate *d = nullptr;
 };

@@ -73,10 +73,8 @@ public:
 
     struct Algorithm {
         QString path;
-        QString flashSize;
-        QString flashStart;
-        QString ramSize;
-        QString ramStart;
+        QString size;
+        QString start;
 
         bool operator==(const Algorithm &other) const;
     };

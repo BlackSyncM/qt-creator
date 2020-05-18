@@ -50,7 +50,6 @@ public:
 
 signals:
     void currentCommandChanged(QTreeWidgetItem *current);
-    void resetRequested();
 
 protected:
     virtual void defaultAction() = 0;
@@ -62,9 +61,8 @@ protected:
 
     void filterChanged(const QString &f);
 
+    // access to m_page
     void setImportExportEnabled(bool enabled);
-    void setResetVisible(bool visible);
-
     QTreeWidget *commandList() const;
     QString filterText() const;
     void setFilterText(const QString &text);

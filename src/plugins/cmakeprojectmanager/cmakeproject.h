@@ -27,13 +27,17 @@
 
 #include "cmake_global.h"
 
+#include "builddirmanager.h"
+#include "cmakebuildsystem.h"
+#include "cmakebuildtarget.h"
+#include "cmakeprojectimporter.h"
+
+#include <projectexplorer/buildsystem.h>
 #include <projectexplorer/project.h>
 
-namespace CMakeProjectManager {
+#include <memory>
 
-namespace Internal {
-class CMakeProjectImporter;
-}
+namespace CMakeProjectManager {
 
 class CMAKE_EXPORT CMakeProject final : public ProjectExplorer::Project
 {
@@ -55,7 +59,7 @@ private:
     ProjectExplorer::MakeInstallCommand makeInstallCommand(const ProjectExplorer::Target *target,
                                                            const QString &installRoot) override;
 
-    mutable Internal::CMakeProjectImporter *m_projectImporter = nullptr;
+    mutable std::unique_ptr<Internal::CMakeProjectImporter> m_projectImporter;
 
     friend class CMakeBuildSystem;
 };

@@ -32,8 +32,6 @@ namespace Internal {
 
 class WebAssemblyToolChain final : public ProjectExplorer::ClangToolChain
 {
-    Q_DECLARE_TR_FUNCTIONS(WebAssembly::Internal::WebAssemblyToolChain)
-
 public:
     void addToEnvironment(Utils::Environment &env) const override;
 
@@ -45,6 +43,8 @@ private:
 
 class WebAssemblyToolChainFactory : public ProjectExplorer::ToolChainFactory
 {
+    Q_OBJECT
+
 public:
     WebAssemblyToolChainFactory();
 

@@ -26,7 +26,6 @@
 #include "genericdirectuploadstep.h"
 
 #include "genericdirectuploadservice.h"
-#include "remotelinux_constants.h"
 
 #include <projectexplorer/deploymentdata.h>
 #include <projectexplorer/target.h>
@@ -80,7 +79,7 @@ GenericDirectUploadStep::~GenericDirectUploadStep() = default;
 
 Core::Id GenericDirectUploadStep::stepId()
 {
-    return Constants::DirectUploadStepId;
+    return "RemoteLinux.DirectUploadStep";
 }
 
 QString GenericDirectUploadStep::displayName()

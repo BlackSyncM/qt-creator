@@ -33,7 +33,6 @@
 #include "task.h"
 
 #include <utils/environment.h>
-#include <utils/macroexpander.h>
 #include <utils/port.h>
 
 #include <QWidget>
@@ -136,6 +135,8 @@ public:
     bool isConfigured() const { return checkForIssues().isEmpty(); }
     virtual Tasks checkForIssues() const { return {}; }
 
+    Utils::OutputFormatter *createOutputFormatter() const;
+
     using CommandLineGetter = std::function<Utils::CommandLine()>;
     void setCommandLineGetter(const CommandLineGetter &cmdGetter);
     Utils::CommandLine commandLine() const;
@@ -167,8 +168,6 @@ public:
 
     void update();
 
-    const Utils::MacroExpander *macroExpander() const { return &m_expander; }
-
 signals:
     void enabledChanged();
 
@@ -197,7 +196,6 @@ private:
     QString m_buildKey;
     CommandLineGetter m_commandLineGetter;
     Updater m_updater;
-    Utils::MacroExpander m_expander;
 };
 
 class RunConfigurationCreationInfo
@@ -234,7 +232,7 @@ public:
     static QString decoratedTargetName(const QString &targetName, Target *kit);
 
 protected:
-    virtual QList<RunConfigurationCreationInfo> availableCreators(Target *target) const;
+    virtual QList<RunConfigurationCreationInfo> availableCreators(Target *parent) const;
 
     using RunConfigurationCreator = std::function<RunConfiguration *(Target *)>;
 

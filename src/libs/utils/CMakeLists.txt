@@ -96,7 +96,6 @@ add_qtc_library(Utils
     osspecificaspects.h
     outputformat.h
     outputformatter.cpp outputformatter.h
-    overlaywidget.cpp overlaywidget.h
     overridecursor.cpp overridecursor.h
     parameteraction.cpp parameteraction.h
     pathchooser.cpp pathchooser.h

@@ -9,8 +9,6 @@
     "iconText": "js",
     "enabled": "%{JS: value('Plugins').indexOf('QmlJSEditor') >= 0}",
 
-    "options": { "key": "DefaultSuffix", "value": "%{JS: Util.preferredSuffix('application/javascript')}" },
-
     "pages" :
     [
         {
@@ -49,7 +47,7 @@
             "data":
             {
                 "source": "file.js",
-                "target": "%{JS: Util.fileName(value('TargetPath'), value('DefaultSuffix'))}",
+                "target": "%{JS: Util.fileName(value('TargetPath'), Util.preferredSuffix('application/javascript'))}",
                 "openInEditor": true
             }
         }

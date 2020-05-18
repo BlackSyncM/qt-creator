@@ -73,7 +73,7 @@ static inline QString detectApp(const char *defaultExe)
     const QStringList entries = dir.entryList({"mingw*"});
     if (entries.isEmpty())
         return QString();
-    path = path / entries.first() / "bin" / defaultApp;
+    path = path.pathAppended(entries.first()).pathAppended("bin").pathAppended(defaultApp);
     if (path.exists())
         return path.toString();
     return QString();

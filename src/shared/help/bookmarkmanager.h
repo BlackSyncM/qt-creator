@@ -122,7 +122,7 @@ private:
     void expandItems();
     bool eventFilter(QObject *object, QEvent *event);
 
-    QRegularExpression regExp;
+    QRegExp regExp;
     TreeView *treeView;
     Utils::FancyLineEdit *searchField;
     BookmarkManager *bookmarkManager;

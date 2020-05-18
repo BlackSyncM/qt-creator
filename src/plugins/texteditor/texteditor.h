@@ -453,7 +453,6 @@ public:
     void openLinkUnderCursorInNextSplit();
 
     virtual void findUsages();
-    virtual void renameSymbolUnderCursor();
 
     /// Abort code assistant if it is running.
     void abortAssist();
@@ -491,7 +490,6 @@ signals:
     void requestLinkAt(const QTextCursor &cursor, Utils::ProcessLinkCallback &callback,
                        bool resolveTarget, bool inNextSplit);
     void requestUsages(const QTextCursor &cursor);
-    void requestRename(const QTextCursor &cursor);
 
 protected:
     QTextBlock blockForVisibleRow(int row) const;

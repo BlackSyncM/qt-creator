@@ -338,7 +338,7 @@ void GraphicsView::contextMenuEvent(QContextMenuEvent *event)
     QAction *insertKeyframeAction = menu.addAction(tr("Insert Keyframe"));
     connect(insertKeyframeAction, &QAction::triggered, insertKeyframes);
 
-    auto deleteKeyframes = [this] { m_scene->deleteSelectedKeyframes(); };
+    auto deleteKeyframes = [this, event] { m_scene->deleteSelectedKeyframes(); };
     QAction *deleteKeyframeAction = menu.addAction(tr("Delete Selected Keyframes"));
     connect(deleteKeyframeAction, &QAction::triggered, deleteKeyframes);
 
@@ -565,8 +565,6 @@ void GraphicsView::drawTimeScale(QPainter *painter, const QRectF &rect)
     double timeIncrement = timeLabelInterval(painter, maximumTime());
     for (double i = minimumTime(); i <= maximumTime(); i += timeIncrement)
         paintLabeledTick(i);
-
-    drawRangeBar(painter, rect);
 
     painter->restore();
 }

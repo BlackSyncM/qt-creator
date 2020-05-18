@@ -1,7 +1,9 @@
 DEFINES += CMAKEPROJECTMANAGER_LIBRARY
 include(../../qtcreatorplugin.pri)
 
-HEADERS = builddirparameters.h \
+HEADERS = builddirmanager.h \
+    builddirparameters.h \
+    builddirreader.h \
     cmakebuildstep.h \
     cmakebuildsystem.h \
     cmakebuildtarget.h \
@@ -24,6 +26,7 @@ HEADERS = builddirparameters.h \
     cmaketoolmanager.h \
     cmake_global.h \
     cmakekitinformation.h \
+    cmakecbpparser.h \
     cmakebuildsettingswidget.h \
     cmakeindenter.h \
     cmakeautocompleter.h \
@@ -34,9 +37,14 @@ HEADERS = builddirparameters.h \
     fileapidataextractor.h \
     fileapiparser.h \
     fileapireader.h \
-    projecttreehelper.h
+    projecttreehelper.h \
+    servermode.h \
+    servermodereader.h \
+    tealeafreader.h
 
-SOURCES = builddirparameters.cpp \
+SOURCES = builddirmanager.cpp \
+    builddirparameters.cpp \
+    builddirreader.cpp \
     cmakebuildstep.cpp \
     cmakebuildsystem.cpp \
     cmakeconfigitem.cpp \
@@ -56,6 +64,7 @@ SOURCES = builddirparameters.cpp \
     cmakesettingspage.cpp \
     cmaketoolmanager.cpp \
     cmakekitinformation.cpp \
+    cmakecbpparser.cpp \
     cmakebuildsettingswidget.cpp \
     cmakeindenter.cpp \
     cmakeautocompleter.cpp \
@@ -66,7 +75,10 @@ SOURCES = builddirparameters.cpp \
     fileapidataextractor.cpp \
     fileapiparser.cpp \
     fileapireader.cpp \
-    projecttreehelper.cpp
+    projecttreehelper.cpp \
+    servermode.cpp \
+    servermodereader.cpp \
+    tealeafreader.cpp
 
 RESOURCES += cmakeproject.qrc
 

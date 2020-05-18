@@ -35,7 +35,7 @@
 namespace ProjectExplorer {
 namespace Internal {
 
-CustomParserConfigDialog::CustomParserConfigDialog(QWidget *parent) :
+CustomParserConfigDialog::CustomParserConfigDialog(QDialog *parent) :
     QDialog(parent),
     ui(new Ui::CustomParserConfigDialog)
 {

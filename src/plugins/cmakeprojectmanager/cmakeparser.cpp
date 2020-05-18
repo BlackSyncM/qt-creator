@@ -54,27 +54,21 @@ CMakeParser::CMakeParser()
 
 void CMakeParser::setSourceDirectory(const QString &sourceDir)
 {
-    if (m_sourceDirectory)
-        emit searchDirExpired(FilePath::fromString(m_sourceDirectory.value().path()));
     m_sourceDirectory = QDir(sourceDir);
-    emit addSearchDir(FilePath::fromString(sourceDir));
 }
 
-OutputLineParser::Result CMakeParser::handleLine(const QString &line, OutputFormat type)
+void CMakeParser::stdError(const QString &line)
 {
-    if (type != StdErrFormat)
-        return Status::NotHandled;
-
     QString trimmedLine = rightTrimmed(line);
+
     switch (m_expectTripleLineErrorData) {
     case NONE:
         if (trimmedLine.isEmpty() && !m_lastTask.isNull()) {
-            if (m_skippedFirstEmptyLine) {
-                flush();
-                return Status::InProgress;
-            }
-            m_skippedFirstEmptyLine = true;
-            return Status::InProgress;
+            if (m_skippedFirstEmptyLine)
+                doFlush();
+            else
+                m_skippedFirstEmptyLine = true;
+            return;
         }
         if (m_skippedFirstEmptyLine)
             m_skippedFirstEmptyLine = false;
@@ -83,84 +77,75 @@ OutputLineParser::Result CMakeParser::handleLine(const QString &line, OutputForm
             QString path = m_sourceDirectory ? m_sourceDirectory->absoluteFilePath(
                                QDir::fromNativeSeparators(m_commonError.cap(1)))
                                              : QDir::fromNativeSeparators(m_commonError.cap(1));
+
             m_lastTask = BuildSystemTask(Task::Error,
                                          QString(),
-                                         absoluteFilePath(FilePath::fromUserInput(path)),
+                                         FilePath::fromUserInput(path),
                                          m_commonError.cap(2).toInt());
             m_lines = 1;
-            LinkSpecs linkSpecs;
-            addLinkSpecForAbsoluteFilePath(linkSpecs, m_lastTask.file, m_lastTask.line,
-                                           m_commonError, 1);
-            return {Status::InProgress, linkSpecs};
+            return;
         } else if (m_nextSubError.indexIn(trimmedLine) != -1) {
             m_lastTask = BuildSystemTask(Task::Error, QString(),
-                                         absoluteFilePath(FilePath::fromUserInput(m_nextSubError.cap(1))));
-            LinkSpecs linkSpecs;
-            addLinkSpecForAbsoluteFilePath(linkSpecs, m_lastTask.file, m_lastTask.line,
-                                           m_nextSubError, 1);
+                                         FilePath::fromUserInput(m_nextSubError.cap(1)));
             m_lines = 1;
-            return {Status::InProgress, linkSpecs};
+            return;
         } else if (trimmedLine.startsWith(QLatin1String("  ")) && !m_lastTask.isNull()) {
-            if (!m_lastTask.summary.isEmpty())
-                m_lastTask.summary.append(' ');
-            m_lastTask.summary.append(trimmedLine.trimmed());
+            if (!m_lastTask.description.isEmpty())
+                m_lastTask.description.append(QLatin1Char(' '));
+            m_lastTask.description.append(trimmedLine.trimmed());
             ++m_lines;
-            return Status::InProgress;
+            return;
         } else if (trimmedLine.endsWith(QLatin1String("in cmake code at"))) {
             m_expectTripleLineErrorData = LINE_LOCATION;
-            flush();
+            doFlush();
             const Task::TaskType type =
                     trimmedLine.contains(QLatin1String("Error")) ? Task::Error : Task::Warning;
             m_lastTask = BuildSystemTask(type, QString());
-            return Status::InProgress;
+            return;
         } else if (trimmedLine.startsWith("CMake Error: ")) {
             m_lastTask = BuildSystemTask(Task::Error, trimmedLine.mid(13));
             m_lines = 1;
-            return Status::InProgress;
+            return;
         } else if (trimmedLine.startsWith("-- ") || trimmedLine.startsWith(" * ")) {
             // Do not pass on lines starting with "-- " or "* ". Those are typical CMake output
-            return Status::InProgress;
+            return;
         }
-        return Status::NotHandled;
+        IOutputParser::stdError(line);
+        return;
     case LINE_LOCATION:
         {
             QRegularExpressionMatch m = m_locationLine.match(trimmedLine);
             QTC_CHECK(m.hasMatch());
-            m_lastTask.file = absoluteFilePath(FilePath::fromUserInput(
-                                                   trimmedLine.mid(0, m.capturedStart())));
+            m_lastTask.file = Utils::FilePath::fromUserInput(trimmedLine.mid(0, m.capturedStart()));
             m_lastTask.line = m.captured(1).toInt();
             m_expectTripleLineErrorData = LINE_DESCRIPTION;
-            LinkSpecs linkSpecs;
-            addLinkSpecForAbsoluteFilePath(linkSpecs, m_lastTask.file, m_lastTask.line, 0,
-                                           m.capturedStart());
-            return {Status::InProgress, linkSpecs};
         }
+        return;
     case LINE_DESCRIPTION:
-        m_lastTask.summary = trimmedLine;
+        m_lastTask.description = trimmedLine;
         if (trimmedLine.endsWith(QLatin1Char('\"')))
             m_expectTripleLineErrorData = LINE_DESCRIPTION2;
         else {
             m_expectTripleLineErrorData = NONE;
-            flush();
-            return Status::Done;
+            doFlush();
         }
-        return Status::InProgress;
+        return;
     case LINE_DESCRIPTION2:
-        m_lastTask.details.append(trimmedLine);
+        m_lastTask.description.append(QLatin1Char('\n'));
+        m_lastTask.description.append(trimmedLine);
         m_expectTripleLineErrorData = NONE;
-        flush();
-        return Status::Done;
+        doFlush();
+        return;
     }
-    return Status::NotHandled;
 }
 
-void CMakeParser::flush()
+void CMakeParser::doFlush()
 {
     if (m_lastTask.isNull())
         return;
     Task t = m_lastTask;
     m_lastTask.clear();
-    scheduleTask(t, m_lines, 1);
+    emit addTask(t, m_lines, 1);
     m_lines = 0;
 }
 
@@ -312,7 +297,7 @@ void Internal::CMakeProjectPlugin::testCMakeParser_data()
 void Internal::CMakeProjectPlugin::testCMakeParser()
 {
     OutputParserTester testbench;
-    testbench.addLineParser(new CMakeParser);
+    testbench.appendOutputParser(new CMakeParser);
     QFETCH(QString, input);
     QFETCH(OutputParserTester::Channel, inputChannel);
     QFETCH(Tasks, tasks);

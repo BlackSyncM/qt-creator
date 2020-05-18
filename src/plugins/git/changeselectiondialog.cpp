@@ -74,15 +74,15 @@ ChangeSelectionDialog::ChangeSelectionDialog(const QString &workingDirectory, Co
     connect(m_ui->selectFromHistoryButton, &QPushButton::clicked,
             this, &ChangeSelectionDialog::selectCommitFromRecentHistory);
     connect(m_ui->showButton, &QPushButton::clicked,
-            this, std::bind(&ChangeSelectionDialog::acceptCommand, this, Show));
+            this, std::bind(&ChangeSelectionDialog::accept, this, Show));
     connect(m_ui->cherryPickButton, &QPushButton::clicked,
-            this, std::bind(&ChangeSelectionDialog::acceptCommand, this, CherryPick));
+            this, std::bind(&ChangeSelectionDialog::accept, this, CherryPick));
     connect(m_ui->revertButton, &QPushButton::clicked,
-            this, std::bind(&ChangeSelectionDialog::acceptCommand, this, Revert));
+            this, std::bind(&ChangeSelectionDialog::accept, this, Revert));
     connect(m_ui->checkoutButton, &QPushButton::clicked,
-            this, std::bind(&ChangeSelectionDialog::acceptCommand, this, Checkout));
+            this, std::bind(&ChangeSelectionDialog::accept, this, Checkout));
     connect(m_ui->archiveButton, &QPushButton::clicked,
-            this, std::bind(&ChangeSelectionDialog::acceptCommand, this, Archive));
+            this, std::bind(&ChangeSelectionDialog::accept, this, Archive));
 
     if (id == "Git.Revert")
         m_ui->revertButton->setDefault(true);
@@ -137,7 +137,7 @@ void ChangeSelectionDialog::selectCommitFromRecentHistory()
 
 QString ChangeSelectionDialog::workingDirectory() const
 {
-    const QString workingDir = m_ui->workingDirectoryChooser->filePath().toString();
+    const QString workingDir = m_ui->workingDirectoryChooser->path();
     if (workingDir.isEmpty() || !QDir(workingDir).exists())
         return QString();
 
@@ -149,7 +149,7 @@ ChangeCommand ChangeSelectionDialog::command() const
     return m_command;
 }
 
-void ChangeSelectionDialog::acceptCommand(ChangeCommand command)
+void ChangeSelectionDialog::accept(ChangeCommand command)
 {
     m_command = command;
     QDialog::accept();

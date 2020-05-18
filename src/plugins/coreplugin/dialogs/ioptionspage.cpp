@@ -36,7 +36,6 @@
 #include <QIcon>
 #include <QLabel>
 #include <QPushButton>
-#include <QRegularExpression>
 
 using namespace Utils;
 
@@ -228,11 +227,11 @@ const QList<Core::IOptionsPage *> Core::IOptionsPage::allOptionsPages()
 }
 
 /*!
-    Is used by the \uicontrol Options dialog search filter to match \a regexp to this options
+    Is used by the \uicontrol Options dialog search filter to match \a searchKeyWord to this options
     page. This defaults to take the widget and then looks for all child labels, check boxes, push
     buttons, and group boxes. Should return \c true when a match is found.
 */
-bool Core::IOptionsPage::matches(const QRegularExpression &regexp) const
+bool Core::IOptionsPage::matches(const QString &searchKeyWord) const
 {
     if (!m_keywordsInitialized) {
         auto that = const_cast<IOptionsPage *>(this);
@@ -252,7 +251,7 @@ bool Core::IOptionsPage::matches(const QRegularExpression &regexp) const
         m_keywordsInitialized = true;
     }
     foreach (const QString &keyword, m_keywords)
-        if (keyword.contains(regexp))
+        if (keyword.contains(searchKeyWord, Qt::CaseInsensitive))
             return true;
     return false;
 }

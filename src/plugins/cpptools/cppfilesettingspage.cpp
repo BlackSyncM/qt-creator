@@ -297,7 +297,7 @@ CppFileSettingsWidget::CppFileSettingsWidget(CppFileSettings *settings)
 
 QString CppFileSettingsWidget::licenseTemplatePath() const
 {
-    return m_ui.licenseTemplatePathChooser->filePath().toString();
+    return m_ui.licenseTemplatePathChooser->path();
 }
 
 void CppFileSettingsWidget::setLicenseTemplatePath(const QString &lp)

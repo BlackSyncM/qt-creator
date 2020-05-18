@@ -29,7 +29,6 @@
 
 #include <coreplugin/icore.h>
 #include <ssh/sshconnection.h>
-#include <utils/theme/theme.h>
 
 #include <QFileDialog>
 
@@ -101,15 +100,16 @@ void PublicKeyDeploymentDialog::handleDeploymentError(const QString &errorMsg)
 void PublicKeyDeploymentDialog::handleDeploymentFinished(const QString &errorMsg)
 {
     QString buttonText;
-    QString textColor;
+    const char *textColor;
     if (errorMsg.isEmpty()) {
         buttonText = tr("Deployment finished successfully.");
-        textColor = Utils::creatorTheme()->color(Utils::Theme::TextColorNormal).name();
+        textColor = "blue";
     } else {
         buttonText = errorMsg;
-        textColor = Utils::creatorTheme()->color(Utils::Theme::TextColorError).name();
+        textColor = "red";
     }
-    setLabelText(QString::fromLatin1("<font color=\"%1\">%2</font>").arg(textColor, buttonText));
+    setLabelText(QString::fromLatin1("<font color=\"%1\">%2</font>").arg(QLatin1String(textColor),
+                                                                         buttonText));
     setCancelButtonText(tr("Close"));
 }
 

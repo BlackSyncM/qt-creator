@@ -100,8 +100,6 @@ public:
     void setBaseColor(const QColor &baseColor);
     IconShape iconShape() const { return m_iconShape; }
     void setIconShape(const IconShape &iconShape);
-    IconShape outlineShape() const { return m_outlineShape; }
-    void setOutlineShape(const IconShape &outlineShape);
 
 private:
     QString m_id;
@@ -119,7 +117,6 @@ private:
     TextAlignment m_textAlignment = TextalignBelow;
     QColor m_baseColor;
     IconShape m_iconShape;
-    IconShape m_outlineShape;
 };
 
 } // namespace qmt

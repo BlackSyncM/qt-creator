@@ -55,7 +55,6 @@ static const int KEYWORD_DISPLAY       = 11;
 static const int KEYWORD_TEXTALIGN     = 12;
 static const int KEYWORD_BASECOLOR     = 13;
 static const int KEYWORD_SHAPE         = 14;
-static const int KEYWORD_OUTLINE       = 15;
 
 // Shape items
 static const int KEYWORD_CIRCLE        = 30;
@@ -167,13 +166,16 @@ public:
 
     IconCommandParameter() = default;
 
-    IconCommandParameter(ShapeValueF::Unit unit, ShapeValueF::Origin origin = ShapeValueF::OriginSmart)
-        : m_unit(unit),
+    IconCommandParameter(int keyword, ShapeValueF::Unit unit, ShapeValueF::Origin origin = ShapeValueF::OriginSmart)
+        : m_keyword(keyword),
+          m_unit(unit),
           m_origin(origin)
     {
     }
 
-    IconCommandParameter(Type type) : m_type(type)
+    IconCommandParameter(int keyword, Type type)
+        : m_keyword(keyword),
+          m_type(type)
     {
     }
 
@@ -188,6 +190,7 @@ public:
     void setBoolean(bool boolean) { m_boolean = boolean; }
 
 private:
+    int m_keyword = -1;
     Type m_type = ShapeValue;
     ShapeValueF::Unit m_unit = ShapeValueF::UnitAbsolute;
     ShapeValueF::Origin m_origin = ShapeValueF::OriginSmart;
@@ -242,7 +245,6 @@ void StereotypeDefinitionParser::parse(ITextSource *source)
                 << qMakePair(QString("textalignment"), KEYWORD_TEXTALIGN)
                 << qMakePair(QString("basecolor"), KEYWORD_BASECOLOR)
                 << qMakePair(QString("shape"), KEYWORD_SHAPE)
-                << qMakePair(QString("outline"), KEYWORD_OUTLINE)
                 << qMakePair(QString("circle"), KEYWORD_CIRCLE)
                 << qMakePair(QString("ellipse"), KEYWORD_ELLIPSE)
                 << qMakePair(QString("line"), KEYWORD_LINE)
@@ -434,9 +436,6 @@ void StereotypeDefinitionParser::parseIcon()
         case KEYWORD_SHAPE:
             stereotypeIcon.setIconShape(parseIconShape());
             break;
-        case KEYWORD_OUTLINE:
-            stereotypeIcon.setOutlineShape(parseIconShape());
-            break;
         case KEYWORD_NAME:
             stereotypeIcon.setName(parseStringProperty());
             stereotypeIcon.setHasName(true);
@@ -456,22 +455,22 @@ void StereotypeDefinitionParser::parseIcon()
 
 QPair<int, StereotypeDefinitionParser::IconCommandParameter> StereotypeDefinitionParser::SCALED(int keyword)
 {
-    return qMakePair(keyword, IconCommandParameter(ShapeValueF::UnitScaled));
+    return qMakePair(keyword, IconCommandParameter(keyword, ShapeValueF::UnitScaled));
 }
 
 QPair<int, StereotypeDefinitionParser::IconCommandParameter> StereotypeDefinitionParser::FIX(int keyword)
 {
-    return qMakePair(keyword, IconCommandParameter(ShapeValueF::UnitRelative));
+    return qMakePair(keyword, IconCommandParameter(keyword, ShapeValueF::UnitRelative));
 }
 
 QPair<int, StereotypeDefinitionParser::IconCommandParameter> StereotypeDefinitionParser::ABSOLUTE(int keyword)
 {
-    return qMakePair(keyword, IconCommandParameter(ShapeValueF::UnitAbsolute));
+    return qMakePair(keyword, IconCommandParameter(keyword, ShapeValueF::UnitAbsolute));
 }
 
 QPair<int, StereotypeDefinitionParser::IconCommandParameter> StereotypeDefinitionParser::BOOLEAN(int keyword)
 {
-    return qMakePair(keyword, IconCommandParameter(IconCommandParameter::Boolean));
+    return qMakePair(keyword, IconCommandParameter(keyword, IconCommandParameter::Boolean));
 }
 
 IconShape StereotypeDefinitionParser::parseIconShape()

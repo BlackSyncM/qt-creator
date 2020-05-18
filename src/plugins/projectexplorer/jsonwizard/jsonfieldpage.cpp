@@ -493,7 +493,7 @@ bool LineEditField::parseData(const QVariant &data, QString *errorMessage)
     m_disabledText = JsonWizardFactory::localizedString(consumeValue(tmp, "trDisabledText").toString());
     m_placeholderText = JsonWizardFactory::localizedString(consumeValue(tmp, "trPlaceholder").toString());
     m_historyId = consumeValue(tmp, "historyId").toString();
-    m_restoreLastHistoryItem = consumeValue(tmp, "restoreLastHistoryItem", false).toBool();
+    m_restoreLastHistoryItem = consumeValue(tmp, "restoreLastHistoyItem", false).toBool();
     QString pattern = consumeValue(tmp, "validator").toString();
     if (!pattern.isEmpty()) {
         m_validatorRegExp = QRegularExpression(pattern);
@@ -561,7 +561,7 @@ bool LineEditField::validate(MacroExpander *expander, QString *message)
                 m_currentText.clear();
             }
         } else {
-            setDefaultText(w, expander);
+            w->setText(expander->expand(m_defaultText));
             m_isModified = false;
         }
     } else {
@@ -579,7 +579,7 @@ void LineEditField::initializeData(MacroExpander *expander)
     auto w = qobject_cast<FancyLineEdit *>(widget());
     QTC_ASSERT(w, return);
     m_isValidating = true;
-    setDefaultText(w, expander);
+    w->setText(expander->expand(m_defaultText));
     w->setPlaceholderText(m_placeholderText);
     m_isModified = false;
     m_isValidating = false;
@@ -593,15 +593,6 @@ void LineEditField::fromSettings(const QVariant &value)
 QVariant LineEditField::toSettings() const
 {
     return qobject_cast<FancyLineEdit *>(widget())->text();
-}
-
-void LineEditField::setDefaultText(FancyLineEdit *edit, MacroExpander *expander)
-{
-    if (!edit->text().isEmpty())
-        return;
-
-    const QString expandedText = expander->expand(m_defaultText);
-    edit->setText(expandedText);
 }
 
 // --------------------------------------------------------------------
@@ -746,7 +737,7 @@ QWidget *PathChooserField::createWidget(const QString &displayName, JsonFieldPag
     if (!m_historyId.isEmpty())
         w->setHistoryCompleter(m_historyId);
     QObject::connect(w, &PathChooser::pathChanged, [this, w] {
-        if (w->filePath().toString() != m_path)
+        if (w->path() != m_path)
             setHasUserChanges();
     });
     return w;
@@ -798,7 +789,7 @@ void PathChooserField::fromSettings(const QVariant &value)
 
 QVariant PathChooserField::toSettings() const
 {
-    return qobject_cast<PathChooser *>(widget())->filePath().toString();
+    return qobject_cast<PathChooser *>(widget())->path();
 }
 
 // --------------------------------------------------------------------

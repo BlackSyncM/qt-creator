@@ -26,23 +26,39 @@
 #include "qttestframework.h"
 #include "qttestconstants.h"
 #include "qttestparser.h"
+#include "qttestsettings.h"
+#include "qttestsettingspage.h"
 #include "qttesttreeitem.h"
 
 namespace Autotest {
 namespace Internal {
 
-ITestParser *QtTestFramework::createTestParser()
+ITestParser *QtTestFramework::createTestParser() const
 {
-    return new QtTestParser(this);
+    return new QtTestParser;
 }
 
-TestTreeItem *QtTestFramework::createRootNode()
+TestTreeItem *QtTestFramework::createRootNode() const
 {
     return new QtTestTreeItem(
-                this,
                 QCoreApplication::translate("QtTestFramework",
                                             QtTest::Constants::FRAMEWORK_SETTINGS_CATEGORY),
                 QString(), TestTreeItem::Root);
+}
+
+IFrameworkSettings *QtTestFramework::createFrameworkSettings() const
+{
+    return new QtTestSettings;
+}
+
+Core::IOptionsPage *QtTestFramework::createSettingsPage(QSharedPointer<IFrameworkSettings> settings) const
+{
+    return new QtTestSettingsPage(settings, settingsId());
+}
+
+bool QtTestFramework::hasFrameworkSettings() const
+{
+    return true;
 }
 
 const char *QtTestFramework::name() const

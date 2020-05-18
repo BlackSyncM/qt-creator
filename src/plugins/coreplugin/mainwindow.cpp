@@ -424,12 +424,6 @@ void MainWindow::registerDefaultContainers()
     medit->appendGroup(Constants::G_EDIT_FIND);
     medit->appendGroup(Constants::G_EDIT_OTHER);
 
-    ActionContainer *mview = ActionManager::createMenu(Constants::M_VIEW);
-    menubar->addMenu(mview, Constants::G_VIEW);
-    mview->menu()->setTitle(tr("&View"));
-    mview->appendGroup(Constants::G_VIEW_VIEWS);
-    mview->appendGroup(Constants::G_VIEW_PANES);
-
     // Tools Menu
     ActionContainer *ac = ActionManager::createMenu(Constants::M_TOOLS);
     menubar->addMenu(ac, Constants::G_TOOLS);
@@ -440,6 +434,8 @@ void MainWindow::registerDefaultContainers()
     menubar->addMenu(mwindow, Constants::G_WINDOW);
     mwindow->menu()->setTitle(tr("&Window"));
     mwindow->appendGroup(Constants::G_WINDOW_SIZE);
+    mwindow->appendGroup(Constants::G_WINDOW_VIEWS);
+    mwindow->appendGroup(Constants::G_WINDOW_PANES);
     mwindow->appendGroup(Constants::G_WINDOW_SPLIT);
     mwindow->appendGroup(Constants::G_WINDOW_NAVIGATE);
     mwindow->appendGroup(Constants::G_WINDOW_LIST);
@@ -469,7 +465,6 @@ void MainWindow::registerDefaultActions()
 {
     ActionContainer *mfile = ActionManager::actionContainer(Constants::M_FILE);
     ActionContainer *medit = ActionManager::actionContainer(Constants::M_EDIT);
-    ActionContainer *mview = ActionManager::actionContainer(Constants::M_VIEW);
     ActionContainer *mtools = ActionManager::actionContainer(Constants::M_TOOLS);
     ActionContainer *mwindow = ActionManager::actionContainer(Constants::M_WINDOW);
     ActionContainer *mhelp = ActionManager::actionContainer(Constants::M_HELP);
@@ -549,7 +544,11 @@ void MainWindow::registerDefaultActions()
     mfile->addAction(cmd, Constants::G_FILE_SAVE);
 
     // SaveAll Action
-    DocumentManager::registerSaveAllAction();
+    m_saveAllAction = new QAction(tr("Save A&ll"), this);
+    cmd = ActionManager::registerAction(m_saveAllAction, Constants::SAVEALL);
+    cmd->setDefaultKeySequence(QKeySequence(useMacShortcuts ? QString() : tr("Ctrl+Shift+S")));
+    mfile->addAction(cmd, Constants::G_FILE_SAVE);
+    connect(m_saveAllAction, &QAction::triggered, this, &MainWindow::saveAll);
 
     // Print Action
     icon = QIcon::fromTheme(QLatin1String("document-print"));
@@ -641,10 +640,7 @@ void MainWindow::registerDefaultActions()
                                            : Utils::Icons::ZOOMOUT_TOOLBAR.icon();
     tmpaction = new QAction(icon, tr("Zoom Out"), this);
     cmd = ActionManager::registerAction(tmpaction, Constants::ZOOM_OUT);
-    if (useMacShortcuts)
-        cmd->setDefaultKeySequences({QKeySequence(tr("Ctrl+-")), QKeySequence(tr("Ctrl+Shift+-"))});
-    else
-        cmd->setDefaultKeySequence(QKeySequence(tr("Ctrl+-")));
+    cmd->setDefaultKeySequence(QKeySequence(tr("Ctrl+-")));
     tmpaction->setEnabled(false);
 
     // Zoom Reset Action
@@ -718,7 +714,7 @@ void MainWindow::registerDefaultActions()
     ProxyAction *toggleLeftSideBarProxyAction =
             ProxyAction::proxyActionWithIcon(cmd->action(), Utils::Icons::TOGGLE_LEFT_SIDEBAR_TOOLBAR.icon());
     m_toggleLeftSideBarButton->setDefaultAction(toggleLeftSideBarProxyAction);
-    mview->addAction(cmd, Constants::G_VIEW_VIEWS);
+    mwindow->addAction(cmd, Constants::G_WINDOW_VIEWS);
     m_toggleLeftSideBarAction->setEnabled(false);
 
     // Show Right Sidebar Action
@@ -734,14 +730,14 @@ void MainWindow::registerDefaultActions()
     ProxyAction *toggleRightSideBarProxyAction =
             ProxyAction::proxyActionWithIcon(cmd->action(), Utils::Icons::TOGGLE_RIGHT_SIDEBAR_TOOLBAR.icon());
     m_toggleRightSideBarButton->setDefaultAction(toggleRightSideBarProxyAction);
-    mview->addAction(cmd, Constants::G_VIEW_VIEWS);
+    mwindow->addAction(cmd, Constants::G_WINDOW_VIEWS);
     m_toggleRightSideBarButton->setEnabled(false);
 
     registerModeSelectorStyleActions();
 
     // Window->Views
-    ActionContainer *mviews = ActionManager::createMenu(Constants::M_VIEW_VIEWS);
-    mview->addMenu(mviews, Constants::G_VIEW_VIEWS);
+    ActionContainer *mviews = ActionManager::createMenu(Constants::M_WINDOW_VIEWS);
+    mwindow->addMenu(mviews, Constants::G_WINDOW_VIEWS);
     mviews->menu()->setTitle(tr("&Views"));
 
     // "Help" separators
@@ -785,7 +781,7 @@ void MainWindow::registerDefaultActions()
 
 void MainWindow::registerModeSelectorStyleActions()
 {
-    ActionContainer *mview = ActionManager::actionContainer(Constants::M_VIEW);
+    ActionContainer *mwindow = ActionManager::actionContainer(Constants::M_WINDOW);
 
     // Cycle Mode Selector Styles
     m_cycleModeSelectorStyleAction = new QAction(tr("Cycle Mode Selector Styles"), this);
@@ -796,8 +792,8 @@ void MainWindow::registerModeSelectorStyleActions()
     });
 
     // Mode Selector Styles
-    ActionContainer *mmodeLayouts = ActionManager::createMenu(Constants::M_VIEW_MODESTYLES);
-    mview->addMenu(mmodeLayouts, Constants::G_VIEW_VIEWS);
+    ActionContainer *mmodeLayouts = ActionManager::createMenu(Constants::M_WINDOW_MODESTYLES);
+    mwindow->addMenu(mmodeLayouts, Constants::G_WINDOW_VIEWS);
     QMenu *styleMenu = mmodeLayouts->menu();
     styleMenu->setTitle(tr("Mode Selector Style"));
     auto *stylesGroup = new QActionGroup(styleMenu);
@@ -891,6 +887,11 @@ IDocument *MainWindow::openFiles(const QStringList &fileNames,
 void MainWindow::setFocusToEditor()
 {
     EditorManagerPrivate::doEscapeKeyFocusMoveMagic();
+}
+
+void MainWindow::saveAll()
+{
+    DocumentManager::saveAllModifiedDocumentsSilently();
 }
 
 void MainWindow::exit()

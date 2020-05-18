@@ -179,7 +179,7 @@ FilePath IosRunConfiguration::bundleDirectory() const
         case BuildConfiguration::Debug :
         case BuildConfiguration::Unknown :
             if (isDevice)
-                res = res / "Debug-iphoneos";
+                res = res.pathAppended("Debug-iphoneos");
             else
                 res = res.pathAppended("Debug-iphonesimulator");
             break;

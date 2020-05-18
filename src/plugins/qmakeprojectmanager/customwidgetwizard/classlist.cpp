@@ -147,7 +147,6 @@ void ClassList::removeCurrentClass()
 void ClassList::keyPressEvent(QKeyEvent *event)
 {
     switch (event->key()) {
-    case Qt::Key_Backspace:
     case Qt::Key_Delete:
         removeCurrentClass();
         break;

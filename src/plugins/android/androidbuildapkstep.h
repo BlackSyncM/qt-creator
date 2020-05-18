@@ -79,10 +79,9 @@ public:
 
     QVariant data(Core::Id id) const override;
 private:
-    void showInGraphicalShell();
+    Q_INVOKABLE void showInGraphicalShell();
 
     bool init() override;
-    void setupOutputFormatter(Utils::OutputFormatter *formatter) override;
     ProjectExplorer::BuildStepConfigWidget *createConfigWidget() override;
     void processStarted() override;
     void processFinished(int exitCode, QProcess::ExitStatus status) override;

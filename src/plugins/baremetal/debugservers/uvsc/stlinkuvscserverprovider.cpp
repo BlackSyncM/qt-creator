@@ -68,6 +68,12 @@ static QString buildAdapterOptions(const StLinkUvscAdapterOptions &opts)
     return s;
 }
 
+static QString buildDllRegistryKey(const DriverSelection &driver)
+{
+    const QFileInfo fi(driver.dll);
+    return fi.baseName();
+}
+
 static QString buildDllRegistryName(const DeviceSelection &device,
                                     const StLinkUvscAdapterOptions &opts)
 {
@@ -75,11 +81,13 @@ static QString buildDllRegistryName(const DeviceSelection &device,
         return {};
     const DeviceSelection::Algorithm algorithm = device.algorithms.at(device.algorithmIndex);
     const QFileInfo path(algorithm.path);
-    const QString flashStart = UvscServerProvider::adjustFlashAlgorithmProperty(algorithm.flashStart);
-    const QString flashSize = UvscServerProvider::adjustFlashAlgorithmProperty(algorithm.flashSize);
+    const QString start = algorithm.start.startsWith("0x") ? algorithm.start.mid(2)
+                                                           : algorithm.start;
+    const QString size = algorithm.size.startsWith("0x") ? algorithm.size.mid(2)
+                                                         : algorithm.size;
     const QString adaptOpts = buildAdapterOptions(opts);
     return QStringLiteral(" %6 -FN1 -FF0%1 -FS0%2 -FL0%3 -FP0($$Device:%4$%5)")
-            .arg(path.fileName(), flashStart, flashSize, device.name, path.filePath(), adaptOpts);
+            .arg(path.fileName(), start, size, device.name, path.filePath(), adaptOpts);
 }
 
 // StLinkUvProjectOptions
@@ -99,7 +107,7 @@ public:
         const auto dllRegistry = m_targetOption->appendPropertyGroup("TargetDriverDllRegistry");
         const auto setRegEntry = dllRegistry->appendPropertyGroup("SetRegEntry");
         setRegEntry->appendProperty("Number", 0);
-        const QString key = UvscServerProvider::buildDllRegistryKey(driver);
+        const QString key = buildDllRegistryKey(driver);
         setRegEntry->appendProperty("Key", key);
         const QString name = buildDllRegistryName(device, provider->m_adapterOpts);
         setRegEntry->appendProperty("Name", name);

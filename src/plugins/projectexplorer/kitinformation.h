@@ -35,7 +35,6 @@
 #include <QVariant>
 
 namespace ProjectExplorer {
-class OutputTaskParser;
 class ToolChain;
 
 class KitAspectWidget;
@@ -85,14 +84,12 @@ public:
 
     void addToEnvironment(const Kit *k, Utils::Environment &env) const override;
     void addToMacroExpander(Kit *kit, Utils::MacroExpander *expander) const override;
-    QList<Utils::OutputLineParser *> createOutputParsers(const Kit *k) const override;
+    IOutputParser *createOutputParser(const Kit *k) const override;
     QSet<Core::Id> availableFeatures(const Kit *k) const override;
 
     static Core::Id id();
     static QByteArray toolChainId(const Kit *k, Core::Id language);
     static ToolChain *toolChain(const Kit *k, Core::Id language);
-    static ToolChain *cToolChain(const Kit *k);
-    static ToolChain *cxxToolChain(const Kit *k);
     static QList<ToolChain *> toolChains(const Kit *k);
     static void setToolChain(Kit *k, ToolChain *tc);
     static void setAllToolChainsToMatch(Kit *k, ToolChain *tc);

@@ -97,13 +97,13 @@ void addCMakeInputs(FolderNode *root,
     addCMakeVFolder(cmakeVFolder.get(),
                     buildDir,
                     100,
-                    QCoreApplication::translate("CMakeProjectManager::Internal::ProjectTreeHelper",
+                    QCoreApplication::translate("CMakeProjectManager::Internal::ServerModeReader",
                                                 "<Build Directory>"),
                     removeKnownNodes(knownFiles, std::move(buildInputs)));
     addCMakeVFolder(cmakeVFolder.get(),
                     Utils::FilePath(),
                     10,
-                    QCoreApplication::translate("CMakeProjectManager::Internal::ProjectTreeHelper",
+                    QCoreApplication::translate("CMakeProjectManager::Internal::ServerModeReader",
                                                 "<Other Locations>"),
                     removeKnownNodes(knownFiles, std::move(rootInputs)));
 
@@ -187,8 +187,7 @@ void addHeaderNodes(ProjectNode *root,
     auto headerNode = std::make_unique<VirtualFolderNode>(root->filePath());
     headerNode->setPriority(Node::DefaultPriority - 5);
     headerNode->setDisplayName(
-        QCoreApplication::translate("CMakeProjectManager::Internal::ProjectTreeHelper",
-                                    "<Headers>"));
+        QCoreApplication::translate("CMakeProjectManager::Internal::ServerModeReader", "<Headers>"));
     headerNode->setIcon(headerNodeIcon);
 
     // Add scanned headers:

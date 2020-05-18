@@ -41,6 +41,7 @@ using namespace Utils;
 namespace Nim {
 
 const char C_NIMBLEPROJECT_TASKS[] = "Nim.NimbleProject.Tasks";
+const char C_NIMBLEPROJECT_METADATA[] = "Nim.NimbleProject.Metadata";
 
 static std::vector<NimbleTask> parseTasks(const QString &nimblePath, const QString &workingDirectory)
 {
@@ -133,12 +134,7 @@ NimbleBuildSystem::NimbleBuildSystem(Target *target)
 
 void NimbleBuildSystem::triggerParsing()
 {
-    // Only allow one parsing run at the same time:
-    auto guard = guardParsingRun();
-    if (!guard.guardsProject())
-        return;
-    m_guard = std::move(guard);
-
+    m_guard = guardParsingRun();
     m_projectScanner.startScan();
 }
 

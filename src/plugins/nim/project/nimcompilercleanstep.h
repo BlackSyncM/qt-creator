@@ -26,10 +26,30 @@
 #pragma once
 
 #include <projectexplorer/buildstep.h>
+#include <projectexplorer/buildsteplist.h>
+#include <utils/fileutils.h>
 
 namespace Nim {
 
-class NimCompilerCleanStepFactory final : public ProjectExplorer::BuildStepFactory
+class NimCompilerCleanStep : public ProjectExplorer::BuildStep
+{
+    Q_OBJECT
+
+public:
+    NimCompilerCleanStep(ProjectExplorer::BuildStepList *parentList, Core::Id id);
+
+private:
+    bool init() override;
+    void doRun() override;
+    void doCancel() override;
+
+    bool removeCacheDirectory();
+    bool removeOutFilePath();
+
+    Utils::FilePath m_buildDir;
+};
+
+class NimCompilerCleanStepFactory : public ProjectExplorer::BuildStepFactory
 {
 public:
     NimCompilerCleanStepFactory();

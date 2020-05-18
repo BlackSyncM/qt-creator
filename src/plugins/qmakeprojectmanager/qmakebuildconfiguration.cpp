@@ -313,7 +313,7 @@ void QmakeBuildConfiguration::updateProblemLabel()
                 }
                 if (!text.endsWith(QLatin1String("br>")))
                     text.append(QLatin1String("<br>"));
-                text.append(type + task.description());
+                text.append(type + task.description);
             }
             buildDirectoryAspect()->setProblem(text);
             return;
@@ -422,6 +422,11 @@ void QmakeBuildConfiguration::forceSeparateDebugInfo(bool sepDebugInfo)
 TriState QmakeBuildConfiguration::qmlDebugging() const
 {
     return aspect<QmlDebuggingAspect>()->setting();
+}
+
+bool QmakeBuildConfiguration::linkQmlDebuggingLibrary() const
+{
+    return qmlDebugging() == TriState::Enabled;
 }
 
 void QmakeBuildConfiguration::forceQmlDebugging(bool enable)
@@ -824,7 +829,7 @@ QmakeBuildConfiguration::LastKitState::LastKitState(Kit *k)
       m_sysroot(SysRootKitAspect::sysRoot(k).toString()),
       m_mkspec(QmakeKitAspect::mkspec(k))
 {
-    ToolChain *tc = ToolChainKitAspect::cxxToolChain(k);
+    ToolChain *tc = ToolChainKitAspect::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     m_toolchain = tc ? tc->id() : QByteArray();
 }
 
@@ -850,7 +855,7 @@ bool QmakeBuildConfiguration::regenerateBuildFiles(Node *node)
     qs->setForced(true);
 
     BuildManager::buildList(cleanSteps());
-    BuildManager::appendStep(qs, BuildManager::displayNameForStepId(ProjectExplorer::Constants::BUILDSTEPS_CLEAN));
+    BuildManager::appendStep(qs, ProjectExplorerPlugin::displayNameForStepId(ProjectExplorer::Constants::BUILDSTEPS_CLEAN));
 
     QmakeProFileNode *proFile = nullptr;
     if (node && node != target()->project()->rootProjectNode())

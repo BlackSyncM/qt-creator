@@ -1,6 +1,5 @@
 import qbs 1.0
 import qbs.FileInfo
-import qbs.Utilities
 
 Project {
     name: "Core"
@@ -18,13 +17,15 @@ Project {
             condition: qbs.targetOS.contains("windows")
         }
 
+        Depends { name: "Qt.script"; required: false }
+
         Depends { name: "Utils" }
         Depends { name: "Aggregation" }
 
         Depends { name: "app_version_header" }
 
         Properties {
-            condition: Utilities.versionCompare(Qt.qml.version, "5.14.0") >= 0
+            condition: Qt.script.present
             cpp.defines: base.concat("WITH_JAVASCRIPTFILTER")
         }
 
@@ -208,7 +209,6 @@ Project {
             prefix: "dialogs/"
             files: [
                 "addtovcsdialog.cpp", "addtovcsdialog.h", "addtovcsdialog.ui",
-                "codecselector.cpp", "codecselector.h",
                 "externaltoolconfig.cpp", "externaltoolconfig.h", "externaltoolconfig.ui",
                 "filepropertiesdialog.cpp", "filepropertiesdialog.h", "filepropertiesdialog.ui",
                 "ioptionspage.cpp", "ioptionspage.h",
@@ -379,7 +379,7 @@ Project {
 
         Group {
             name: "Locator Javascript Filter"
-            condition: Utilities.versionCompare(Qt.qml.version, "5.14.0") >= 0
+            condition: Qt.script.present
             prefix: "locator/"
             files: [
                 "javascriptfilter.cpp",

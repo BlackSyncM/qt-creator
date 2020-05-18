@@ -431,24 +431,24 @@ void CdbEngine::setupEngine()
     m_outputBuffer.clear();
     m_autoBreakPointCorrection = false;
 
-    Utils::Environment debuggerEnvironment = sp.debugger.environment.size() == 0
-            ? Utils::Environment::systemEnvironment() : sp.debugger.environment;
+    Utils::Environment inferiorEnvironment = sp.inferior.environment.size() == 0
+            ? Utils::Environment::systemEnvironment() : sp.inferior.environment;
 
     // Make sure that QTestLib uses OutputDebugString for logging.
     const QString qtLoggingToConsoleKey = QStringLiteral("QT_LOGGING_TO_CONSOLE");
-    if (!sp.useTerminal && !debuggerEnvironment.hasKey(qtLoggingToConsoleKey))
-        debuggerEnvironment.set(qtLoggingToConsoleKey, "0");
+    if (!sp.useTerminal && !inferiorEnvironment.hasKey(qtLoggingToConsoleKey))
+        inferiorEnvironment.set(qtLoggingToConsoleKey, "0");
 
     static const char cdbExtensionPathVariableC[] = "_NT_DEBUGGER_EXTENSION_PATH";
-    debuggerEnvironment.prependOrSet(cdbExtensionPathVariableC, extensionFi.absolutePath(), {";"});
+    inferiorEnvironment.prependOrSet(cdbExtensionPathVariableC, extensionFi.absolutePath(), {";"});
     const QByteArray oldCdbExtensionPath = qgetenv(cdbExtensionPathVariableC);
     if (!oldCdbExtensionPath.isEmpty()) {
-        debuggerEnvironment.appendOrSet(cdbExtensionPathVariableC,
+        inferiorEnvironment.appendOrSet(cdbExtensionPathVariableC,
                                         QString::fromLocal8Bit(oldCdbExtensionPath),
                                         {";"});
     }
 
-    m_process.setEnvironment(debuggerEnvironment);
+    m_process.setEnvironment(inferiorEnvironment);
     if (!sp.inferior.workingDirectory.isEmpty())
         m_process.setWorkingDirectory(sp.inferior.workingDirectory);
 
@@ -966,13 +966,6 @@ void CdbEngine::executeDebuggerCommand(const QString &command)
 // Post command to the cdb process
 void CdbEngine::runCommand(const DebuggerCommand &dbgCmd)
 {
-    constexpr int maxCommandLength = 4096;
-    constexpr int maxTokenLength = 4 /*" -t "*/
-                                   + 5 /* 99999 tokens should be enough for a single qc run time*/
-                                   + 1 /* token part splitter '.' */
-                                   + 3 /* 1000 parts should also be more than enough */
-                                   + 1 /* final space */;
-
     QString cmd = dbgCmd.function + dbgCmd.argsToString();
     if (!m_accessible) {
         doInterruptInferior([this, dbgCmd](){
@@ -984,26 +977,11 @@ void CdbEngine::runCommand(const DebuggerCommand &dbgCmd)
         return;
     }
 
-    if (dbgCmd.flags == ScriptCommand) {
-        // repack script command into an extension command
-        DebuggerCommand newCmd("script", ExtensionCommand, dbgCmd.callback);
-        if (!dbgCmd.args.isNull())
-            newCmd.args = QString{dbgCmd.function + '(' + dbgCmd.argsToPython() + ')'};
-        else
-            newCmd.args = dbgCmd.function;
-        runCommand(newCmd);
-        return;
-    }
-
     QString fullCmd;
     if (dbgCmd.flags == NoFlags) {
-        fullCmd = cmd + '\n';
-        if (fullCmd.length() > maxCommandLength) {
-            showMessage("Command is longer than 4096 characters execution will likely fail.",
-                        LogWarning);
-        }
+        fullCmd = cmd;
     } else {
-        const int token = ++m_nextCommandToken;
+        const int token = m_nextCommandToken++;
         StringInputStream str(fullCmd);
         if (dbgCmd.flags == BuiltinCommand) {
             // Post a built-in-command producing free-format output with a callback.
@@ -1011,35 +989,23 @@ void CdbEngine::runCommand(const DebuggerCommand &dbgCmd)
             // printing a specially formatted token to be identifiable in the output.
             str << ".echo \"" << m_tokenPrefix << token << "<\"\n"
                 << cmd << "\n"
-                << ".echo \"" << m_tokenPrefix << token << ">\"" << '\n';
-            if (fullCmd.length() > maxCommandLength) {
-                showMessage("Command is longer than 4096 characters execution will likely fail.",
-                            LogWarning);
-            }
+                << ".echo \"" << m_tokenPrefix << token << ">\"";
         } else if (dbgCmd.flags == ExtensionCommand) {
-
             // Post an extension command producing one-line output with a callback,
             // pass along token for identification in hash.
-            const QString prefix = m_extensionCommandPrefix + dbgCmd.function;
-            QList<QStringRef> splittedArguments;
-            if (dbgCmd.args.isString()) {
-                const QString &arguments = dbgCmd.argsToString();
-                cmd = prefix + arguments;
-                int argumentSplitPos = 0;
-                QList<QStringRef> splittedArguments;
-                int maxArgumentSize = maxCommandLength - prefix.length() - maxTokenLength;
-                while (argumentSplitPos < arguments.size()) {
-                    splittedArguments << arguments.midRef(argumentSplitPos, maxArgumentSize);
-                    argumentSplitPos += splittedArguments.last().length();
-                }
-                QTC_CHECK(argumentSplitPos == arguments.size());
-                int tokenPart = splittedArguments.size();
-                for (const QStringRef &part : qAsConst(splittedArguments))
-                    str << prefix << " -t " << token << '.' << --tokenPart << ' ' << part << '\n';
-            } else {
-                cmd = prefix;
-                str << prefix << " -t " << token << '.' << 0 << '\n';
-            }
+            str << m_extensionCommandPrefix << dbgCmd.function << "%1%2";
+            if (dbgCmd.args.isString())
+                str <<  ' ' << dbgCmd.argsToString();
+            cmd = fullCmd.arg("", "");
+            fullCmd = fullCmd.arg(" -t ").arg(token);
+        } else if (dbgCmd.flags == ScriptCommand) {
+            // Add extension prefix and quotes the script command
+            // pass along token for identification in hash.
+            str << m_extensionCommandPrefix + "script %1%2 " << dbgCmd.function;
+            if (!dbgCmd.args.isNull())
+                str << '(' << dbgCmd.argsToPython() << ')';
+            cmd = fullCmd.arg("", "");
+            fullCmd = fullCmd.arg(" -t ").arg(token);
         }
         m_commandForToken.insert(token, dbgCmd);
     }
@@ -1052,7 +1018,7 @@ void CdbEngine::runCommand(const DebuggerCommand &dbgCmd)
         qDebug("CdbEngine::postCommand: resulting command '%s'\n", qPrintable(fullCmd));
     }
     showMessage(cmd, LogInput);
-    m_process.write(fullCmd.toLocal8Bit());
+    m_process.write(fullCmd.toLocal8Bit() + '\n');
 }
 
 void CdbEngine::activateFrame(int index)

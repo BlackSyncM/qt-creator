@@ -45,6 +45,8 @@ public:
 
     ProjectExplorer::Abis detectQtAbis() const override;
 
+    void addToEnvironment(const ProjectExplorer::Kit *k, Utils::Environment &env) const override;
+
     QSet<Core::Id> availableFeatures() const override;
     QSet<Core::Id> targetDeviceTypes() const override;
 

@@ -314,11 +314,6 @@ void LldbEngine::setupEngine()
         const bool success = response.data["success"].toInt();
         if (success) {
             BreakpointManager::claimBreakpointsForEngine(this);
-            // Some extra roundtrip to make sure we end up behind all commands triggered
-            // from claimBreakpointsForEngine().
-            DebuggerCommand cmd3("executeRoundtrip");
-            cmd3.callback = [this](const DebuggerResponse &) { notifyEngineSetupOk(); };
-            runCommand(cmd3);
         } else {
             notifyEngineSetupFailed();
         }
@@ -678,7 +673,7 @@ void LldbEngine::requestModuleSymbols(const QString &moduleName)
 {
     DebuggerCommand cmd("fetchSymbols");
     cmd.arg("module", moduleName);
-    cmd.callback = [moduleName](const DebuggerResponse &response) {
+    cmd.callback = [this, moduleName](const DebuggerResponse &response) {
         const GdbMi &symbols = response.data["symbols"];
         QString moduleName = response.data["module"].data();
         Symbols syms;
@@ -908,6 +903,8 @@ void LldbEngine::handleStateNotification(const GdbMi &item)
         notifyInferiorStopFailed();
     else if (newState == "inferiorill")
         notifyInferiorIll();
+    else if (newState == "enginesetupok")
+        notifyEngineSetupOk();
     else if (newState == "enginesetupfailed") {
         Core::AsynchronousMessageBox::critical(adapterStartFailed(),
                                                item["error"].data());

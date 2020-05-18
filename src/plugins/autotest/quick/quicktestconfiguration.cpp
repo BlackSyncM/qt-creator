@@ -29,14 +29,13 @@
 #include "../qtest/qttestsettings.h"
 #include "../qtest/qttest_utils.h"
 #include "../autotestplugin.h"
-#include "../itestframework.h"
+#include "../testframeworkmanager.h"
 #include "../testsettings.h"
 
 namespace Autotest {
 namespace Internal {
 
-QuickTestConfiguration::QuickTestConfiguration(ITestFramework *framework)
-    : DebuggableTestConfiguration(framework)
+QuickTestConfiguration::QuickTestConfiguration()
 {
     setMixedDebugging(true);
 }
@@ -44,7 +43,10 @@ QuickTestConfiguration::QuickTestConfiguration(ITestFramework *framework)
 TestOutputReader *QuickTestConfiguration::outputReader(const QFutureInterface<TestResultPtr> &fi,
                                                        QProcess *app) const
 {
-    auto qtSettings = dynamic_cast<QtTestSettings *>(framework()->frameworkSettings());
+    static const Core::Id id
+            = Core::Id(Constants::FRAMEWORK_PREFIX).withSuffix(QtTest::Constants::FRAMEWORK_NAME);
+    TestFrameworkManager *manager = TestFrameworkManager::instance();
+    auto qtSettings = qSharedPointerCast<QtTestSettings>(manager->settingsForTestFramework(id));
     const QtTestOutputReader::OutputMode mode = qtSettings && qtSettings->useXMLOutput
             ? QtTestOutputReader::XML
             : QtTestOutputReader::PlainText;
@@ -54,6 +56,9 @@ TestOutputReader *QuickTestConfiguration::outputReader(const QFutureInterface<Te
 
 QStringList QuickTestConfiguration::argumentsForTestRunner(QStringList *omitted) const
 {
+    static const Core::Id id
+            = Core::Id(Constants::FRAMEWORK_PREFIX).withSuffix(QtTest::Constants::FRAMEWORK_NAME);
+
     QStringList arguments;
     if (AutotestPlugin::settings()->processArgs) {
         arguments.append(QTestUtils::filterInterfering
@@ -61,8 +66,9 @@ QStringList QuickTestConfiguration::argumentsForTestRunner(QStringList *omitted)
                           omitted, true));
     }
 
-    auto qtSettings = dynamic_cast<QtTestSettings *>(framework()->frameworkSettings());
-    if (!qtSettings)
+    TestFrameworkManager *manager = TestFrameworkManager::instance();
+    auto qtSettings = qSharedPointerCast<QtTestSettings>(manager->settingsForTestFramework(id));
+    if (qtSettings.isNull())
         return arguments;
     if (qtSettings->useXMLOutput)
         arguments << "-xml";

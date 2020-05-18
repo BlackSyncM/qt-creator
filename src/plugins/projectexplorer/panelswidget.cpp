@@ -25,17 +25,14 @@
 
 #include "panelswidget.h"
 
-#include <coreplugin/minisplitter.h>
+#include <QPainter>
+#include <QVBoxLayout>
+#include <QLabel>
 
 #include <utils/stylehelper.h>
 #include <utils/theme/theme.h>
 #include <utils/qtcassert.h>
 #include <utils/styledbar.h>
-
-#include <QLabel>
-#include <QPainter>
-#include <QScrollArea>
-#include <QVBoxLayout>
 
 using namespace Utils;
 
@@ -49,27 +46,53 @@ const int ABOVE_CONTENTS_MARGIN = 4;
 const int BELOW_CONTENTS_MARGIN = 16;
 const int PANEL_LEFT_MARGIN = 70;
 
+class RootWidget : public QWidget
+{
+public:
+    RootWidget(QWidget *parent) : QWidget(parent) {
+        setFocusPolicy(Qt::NoFocus);
+    }
+    void paintEvent(QPaintEvent *) override;
+};
+
+void RootWidget::paintEvent(QPaintEvent *e)
+{
+    QWidget::paintEvent(e);
+
+    if (!creatorTheme()->flag(Theme::FlatToolBars)) {
+        // draw separator line to the right of the settings panel
+        QPainter painter(this);
+        QColor light = StyleHelper::mergedColors(
+                    palette().button().color(), Qt::white, 30);
+        QColor dark = StyleHelper::mergedColors(
+                    palette().button().color(), Qt::black, 85);
+
+        painter.setPen(light);
+        painter.drawLine(rect().topRight(), rect().bottomRight());
+        painter.setPen(dark);
+        painter.drawLine(rect().topRight() - QPoint(1,0), rect().bottomRight() - QPoint(1,0));
+    }
+}
 }
 
 ///
 // PanelsWidget
 ///
 
-PanelsWidget::PanelsWidget(QWidget *parent) : QWidget(parent)
+PanelsWidget::PanelsWidget(QWidget *parent) :
+    QWidget(parent),
+    m_root(new RootWidget(this))
 {
-    const auto splitter = new Core::MiniSplitter(this);
-    m_root = new QWidget(nullptr);
-    m_root->setFocusPolicy(Qt::NoFocus);
+    // We want a 900px wide widget with and the scrollbar at the
+    // side of the screen.
+    m_root->setMaximumWidth(900);
     m_root->setContentsMargins(0, 0, 40, 0);
-    splitter->addWidget(m_root);
-    splitter->addWidget(new QWidget);
-    splitter->setStretchFactor(1, 100); // Force root widget to its minimum size initially
 
-    const auto scroller = new QScrollArea(this);
-    scroller->setWidget(splitter);
-    scroller->setFrameStyle(QFrame::NoFrame);
-    scroller->setWidgetResizable(true);
-    scroller->setFocusPolicy(Qt::NoFocus);
+    m_scroller = new QScrollArea(this);
+    m_scroller->setWidget(m_root);
+    m_scroller->setFrameStyle(QFrame::NoFrame);
+    m_scroller->setWidgetResizable(true);
+    m_scroller->setFocusPolicy(Qt::NoFocus);
 
     // The layout holding the individual panels:
     auto topLayout = new QVBoxLayout(m_root);
@@ -87,7 +110,7 @@ PanelsWidget::PanelsWidget(QWidget *parent) : QWidget(parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     layout->addWidget(new Utils::StyledBar(this));
-    layout->addWidget(scroller);
+    layout->addWidget(m_scroller);
 
     //layout->addWidget(new FindToolBarPlaceHolder(this));
 }

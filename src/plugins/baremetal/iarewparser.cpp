@@ -28,6 +28,9 @@
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/task.h>
 
+#include <texteditor/fontsettings.h>
+#include <texteditor/texteditorsettings.h>
+
 #include <QRegularExpression>
 
 using namespace ProjectExplorer;
@@ -61,9 +64,31 @@ Core::Id IarParser::id()
 
 void IarParser::newTask(const Task &task)
 {
-    flush();
+    doFlush();
     m_lastTask = task;
     m_lines = 1;
+}
+
+void IarParser::amendDescription()
+{
+    while (!m_descriptionParts.isEmpty())
+        m_lastTask.description.append(m_descriptionParts.takeFirst());
+
+    while (!m_snippets.isEmpty()) {
+        const QString snippet = m_snippets.takeFirst();
+        const int start = m_lastTask.description.count() + 1;
+        m_lastTask.description.append('\n');
+        m_lastTask.description.append(snippet);
+
+        QTextLayout::FormatRange fr;
+        fr.start = start;
+        fr.length = m_lastTask.description.count() + 1;
+        fr.format.setFont(TextEditor::TextEditorSettings::fontSettings().font());
+        fr.format.setFontStyleHint(QFont::Monospace);
+        m_lastTask.formats.append(fr);
+
+        ++m_lines;
+    }
 }
 
 void IarParser::amendFilePath()
@@ -120,12 +145,12 @@ bool IarParser::parseErrorOrFatalErrorDetailsMessage2(const QString &lne)
     return true;
 }
 
-OutputLineParser::Result IarParser::parseWarningOrErrorOrFatalErrorDetailsMessage1(const QString &lne)
+bool IarParser::parseWarningOrErrorOrFatalErrorDetailsMessage1(const QString &lne)
 {
     const QRegularExpression re("^\"(.+)\",(\\d+)?\\s+(Warning|Error|Fatal error)\\[(.+)\\].+$");
     const QRegularExpressionMatch match = re.match(lne);
     if (!match.hasMatch())
-        return Status::NotHandled;
+        return false;
     enum CaptureIndex { FilePathIndex = 1, LineNumberIndex,
                         MessageTypeIndex, MessageCodeIndex };
     const Utils::FilePath fileName = Utils::FilePath::fromUserInput(
@@ -133,16 +158,13 @@ OutputLineParser::Result IarParser::parseWarningOrErrorOrFatalErrorDetailsMessag
     const int lineno = match.captured(LineNumberIndex).toInt();
     const Task::TaskType type = taskType(match.captured(MessageTypeIndex));
     // A full description will be received later on next lines.
-    newTask(CompileTask(type, {}, absoluteFilePath(fileName), lineno));
+    newTask(CompileTask(type, {}, fileName, lineno));
     const QString firstPart = QString("[%1]: ").arg(match.captured(MessageCodeIndex));
     m_descriptionParts.append(firstPart);
     m_expectDescription = true;
     m_expectSnippet = false;
     m_expectFilePath = false;
-    LinkSpecs linkSpecs;
-    addLinkSpecForAbsoluteFilePath(linkSpecs, m_lastTask.file, m_lastTask.line, match,
-                                   FilePathIndex);
-    return {Status::InProgress, linkSpecs};
+    return true;
 }
 
 bool IarParser::parseErrorInCommandLineMessage(const QString &lne)
@@ -168,70 +190,67 @@ bool IarParser::parseErrorMessage1(const QString &lne)
     return true;
 }
 
-OutputLineParser::Result IarParser::handleLine(const QString &line, OutputFormat type)
+void IarParser::stdError(const QString &line)
 {
+    IOutputParser::stdError(line);
+
     const QString lne = rightTrimmed(line);
-    if (type == StdOutFormat) {
-        // The call sequence has the meaning!
-        const bool leastOneParsed = parseErrorInCommandLineMessage(lne)
-                || parseErrorMessage1(lne);
-        if (!leastOneParsed) {
-            flush();
-            return Status::NotHandled;
-        }
-        return Status::InProgress;
-    }
 
     if (parseErrorOrFatalErrorDetailsMessage1(lne))
-        return Status::InProgress;
+        return;
     if (parseErrorOrFatalErrorDetailsMessage2(lne))
-        return Status::InProgress;
-    const Result res = parseWarningOrErrorOrFatalErrorDetailsMessage1(lne);
-    if (res.status != Status::NotHandled)
-        return res;
+        return;
+    if (parseWarningOrErrorOrFatalErrorDetailsMessage1(lne))
+        return;
 
-    if (m_expectFilePath) {
+    if (lne.isEmpty()) {
+        //
+    } else if (!lne.startsWith(' ')) {
+        return;
+    } else if (m_expectFilePath) {
         if (lne.endsWith(']')) {
             const QString lastPart = lne.left(lne.size() - 1);
             m_filePathParts.push_back(lastPart);
-            flush();
-            return Status::Done;
         } else {
             m_filePathParts.push_back(lne);
-            return Status::InProgress;
+            return;
         }
-    }
-    if (m_expectSnippet && lne.startsWith(' ')) {
+    } else if (m_expectSnippet) {
         if (!lne.endsWith("Fatal error detected, aborting.")) {
             m_snippets.push_back(lne);
-            return Status::InProgress;
+            return;
         }
     } else if (m_expectDescription) {
         if (!lne.startsWith("            ")) {
             m_descriptionParts.push_back(lne.trimmed());
-            return Status::InProgress;
+            return;
         }
     }
 
-    if (!m_lastTask.isNull()) {
-        flush();
-        return Status::Done;
-    }
-
-    return Status::NotHandled;
+    doFlush();
 }
 
-void IarParser::flush()
+void IarParser::stdOutput(const QString &line)
+{
+    IOutputParser::stdOutput(line);
+
+    const QString lne = rightTrimmed(line);
+
+    // The call sequence has the meaning!
+    const bool leastOneParsed = parseErrorInCommandLineMessage(lne)
+            || parseErrorMessage1(lne);
+    if (!leastOneParsed)
+        return;
+
+    doFlush();
+}
+
+void IarParser::doFlush()
 {
     if (m_lastTask.isNull())
         return;
 
-    while (!m_descriptionParts.isEmpty())
-        m_lastTask.summary.append(m_descriptionParts.takeFirst());
-    m_lastTask.details = m_snippets;
-    m_snippets.clear();
-    m_lines += m_lastTask.details.count();
-    setMonospacedDetailsFormat(m_lastTask);
+    amendDescription();
     amendFilePath();
 
     m_expectSnippet = true;
@@ -240,7 +259,7 @@ void IarParser::flush()
 
     Task t = m_lastTask;
     m_lastTask.clear();
-    scheduleTask(t, m_lines, 1);
+    emit addTask(t, m_lines, 1);
     m_lines = 0;
 }
 
@@ -281,7 +300,7 @@ void BareMetalPlugin::testIarOutputParsers_data()
     QTest::newRow("Error in command line")
             << QString::fromLatin1("Error in command line: Some error")
             << OutputParserTester::STDOUT
-            << QString()
+            << QString::fromLatin1("Error in command line: Some error\n")
             << QString()
             << (Tasks() << CompileTask(Task::Error,
                                        "Error in command line: Some error"))
@@ -290,7 +309,7 @@ void BareMetalPlugin::testIarOutputParsers_data()
     QTest::newRow("Linker error")
             << QString::fromLatin1("Error[e46]: Some error")
             << OutputParserTester::STDOUT
-            << QString()
+            << QString::fromLatin1("Error[e46]: Some error\n")
             << QString()
             << (Tasks() << CompileTask(Task::Error,
                                        "[e46]: Some error"))
@@ -302,7 +321,8 @@ void BareMetalPlugin::testIarOutputParsers_data()
                                    "          Some warning \"foo\" bar")
             << OutputParserTester::STDERR
             << QString()
-            << QString()
+            << QString::fromLatin1("\"c:\\foo\\main.c\",63 Warning[Pe223]:\n"
+                                   "          Some warning \"foo\" bar\n")
             << (Tasks() << CompileTask(Task::Warning,
                                        "[Pe223]: Some warning \"foo\" bar",
                                        Utils::FilePath::fromUserInput("c:\\foo\\main.c"),
@@ -316,7 +336,10 @@ void BareMetalPlugin::testIarOutputParsers_data()
                                    "          Some warning")
             << OutputParserTester::STDERR
             << QString()
-            << QString()
+            << QString::fromLatin1("      some_detail;\n"
+                                   "      ^\n"
+                                   "\"c:\\foo\\main.c\",63 Warning[Pe223]:\n"
+                                   "          Some warning\n")
             << (Tasks() << CompileTask(Task::Warning,
                                        "[Pe223]: Some warning\n"
                                        "      some_detail;\n"
@@ -331,7 +354,9 @@ void BareMetalPlugin::testIarOutputParsers_data()
                                    "          , split")
             << OutputParserTester::STDERR
             << QString()
-            << QString()
+            << QString::fromLatin1("\"c:\\foo\\main.c\",63 Warning[Pe223]:\n"
+                                   "          Some warning\n"
+                                   "          , split\n")
             << (Tasks() << CompileTask(Task::Warning,
                                        "[Pe223]: Some warning, split",
                                        FilePath::fromUserInput("c:\\foo\\main.c"),
@@ -343,7 +368,8 @@ void BareMetalPlugin::testIarOutputParsers_data()
                                    "          Some error")
             << OutputParserTester::STDERR
             << QString()
-            << QString()
+            << QString::fromLatin1("\"c:\\foo\\main.c\",63 Error[Pe223]:\n"
+                                   "          Some error\n")
             << (Tasks() << CompileTask(Task::Error,
                                        "[Pe223]: Some error",
                                        FilePath::fromUserInput("c:\\foo\\main.c"),
@@ -357,7 +383,10 @@ void BareMetalPlugin::testIarOutputParsers_data()
                                    "          Some error")
             << OutputParserTester::STDERR
             << QString()
-            << QString()
+            << QString::fromLatin1("      some_detail;\n"
+                                   "      ^\n"
+                                   "\"c:\\foo\\main.c\",63 Error[Pe223]:\n"
+                                   "          Some error\n")
             << (Tasks() << CompileTask(Task::Error,
                                        "[Pe223]: Some error\n"
                                        "      some_detail;\n"
@@ -372,7 +401,9 @@ void BareMetalPlugin::testIarOutputParsers_data()
                                    "          , split")
             << OutputParserTester::STDERR
             << QString()
-            << QString()
+            << QString::fromLatin1("\"c:\\foo\\main.c\",63 Error[Pe223]:\n"
+                                   "          Some error\n"
+                                   "          , split\n")
             << (Tasks() << CompileTask(Task::Error,
                                        "[Pe223]: Some error, split",
                                        FilePath::fromUserInput("c:\\foo\\main.c"),
@@ -386,7 +417,10 @@ void BareMetalPlugin::testIarOutputParsers_data()
                                    "]")
             << OutputParserTester::STDERR
             << QString()
-            << QString()
+            << QString::fromLatin1("Error[Li005]: Some error \"foo\" [referenced from c:\\fo\n"
+                                   "         o\\bar\\mai\n"
+                                   "         n.c.o\n"
+                                   "]\n")
             << (Tasks() << CompileTask(Task::Error,
                                        "[Li005]: Some error \"foo\"",
                                        FilePath::fromUserInput("c:\\foo\\bar\\main.c.o")))
@@ -399,7 +433,10 @@ void BareMetalPlugin::testIarOutputParsers_data()
                                    "Fatal error detected, aborting.")
             << OutputParserTester::STDERR
             << QString()
-            << QString()
+            << QString::fromLatin1("Fatal error[Su011]: Some error:\n"
+                                   "                      c:\\foo.c\n"
+                                   "            c:\\bar.c\n"
+                                   "Fatal error detected, aborting.\n")
             << (Tasks() << CompileTask(Task::Error,
                                        "[Su011]: Some error:\n"
                                        "                      c:\\foo.c\n"
@@ -410,7 +447,7 @@ void BareMetalPlugin::testIarOutputParsers_data()
             << QString::fromLatin1("At end of source  Error[Pe040]: Some error \";\"")
             << OutputParserTester::STDERR
             << QString()
-            << QString()
+            << QString::fromLatin1("At end of source  Error[Pe040]: Some error \";\"\n")
             << (Tasks() << CompileTask(Task::Error,
                                        "[Pe040]: Some error \";\""))
             << QString();
@@ -419,7 +456,7 @@ void BareMetalPlugin::testIarOutputParsers_data()
 void BareMetalPlugin::testIarOutputParsers()
 {
     OutputParserTester testbench;
-    testbench.addLineParser(new IarParser);
+    testbench.appendOutputParser(new IarParser);
     QFETCH(QString, input);
     QFETCH(OutputParserTester::Channel, inputChannel);
     QFETCH(Tasks, tasks);

@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <texteditor/codeassist/completionassistprovider.h>
 #include <texteditor/codeassist/keywordscompletionassist.h>
 
 namespace CMakeProjectManager {

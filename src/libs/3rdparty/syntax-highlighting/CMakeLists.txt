@@ -37,8 +37,11 @@ install(
   DESTINATION "${IDE_DATA_PATH}/generic-highlighter/"
 )
 
-# copy resource directories during build
-qtc_copy_to_builddir(copy_generic_highligher_to_builddir
-  DIRECTORIES data/syntax
-  DESTINATION "${IDE_DATA_PATH}/generic-highlighter/syntax"
+add_custom_target(copy_generic_highligher_to_builddir ALL VERBATIM)
+add_custom_command(TARGET copy_generic_highligher_to_builddir POST_BUILD
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory data/syntax
+    "${PROJECT_BINARY_DIR}/${IDE_DATA_PATH}/generic-highlighter/syntax"
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  COMMENT Copy files into build directory
+  VERBATIM
 )

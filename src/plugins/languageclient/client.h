@@ -59,7 +59,6 @@ namespace Core { class IDocument; }
 namespace ProjectExplorer { class Project; }
 namespace TextEditor
 {
-class IAssistProcessor;
 class TextDocument;
 class TextEditorWidget;
 class TextMark;
@@ -130,7 +129,6 @@ public:
     const ProjectExplorer::Project *project() const;
     void projectOpened(ProjectExplorer::Project *project);
     void projectClosed(ProjectExplorer::Project *project);
-    void projectFileListChanged();
 
     void sendContent(const LanguageServerProtocol::IContent &content);
     void sendContent(const LanguageServerProtocol::DocumentUri &uri,
@@ -138,13 +136,9 @@ public:
     void cancelRequest(const LanguageServerProtocol::MessageId &id);
 
     void setSupportedLanguage(const LanguageFilter &filter);
-    void setInitializationOptions(const QJsonObject& initializationOptions);
     bool isSupportedDocument(const TextEditor::TextDocument *document) const;
     bool isSupportedFile(const Utils::FilePath &filePath, const QString &mimeType) const;
     bool isSupportedUri(const LanguageServerProtocol::DocumentUri &uri) const;
-
-    void addAssistProcessor(TextEditor::IAssistProcessor *processor);
-    void removeAssistProcessor(TextEditor::IAssistProcessor *processor);
 
     void setName(const QString &name) { m_displayName = name; }
     QString name() const { return m_displayName; }
@@ -216,7 +210,6 @@ private:
     QHash<QByteArray, ContentHandler> m_contentHandler;
     QString m_displayName;
     LanguageFilter m_languagFilter;
-    QJsonObject m_initializationOptions;
     QMap<TextEditor::TextDocument *, QString> m_openedDocument;
     Core::Id m_id;
     LanguageServerProtocol::ServerCapabilities m_serverCapabilities;
@@ -238,7 +231,6 @@ private:
     HoverHandler m_hoverHandler;
     QHash<LanguageServerProtocol::DocumentUri, TextEditor::HighlightingResults> m_highlights;
     const ProjectExplorer::Project *m_project = nullptr;
-    QSet<TextEditor::IAssistProcessor *> m_runningAssistProcessors;
 };
 
 } // namespace LanguageClient

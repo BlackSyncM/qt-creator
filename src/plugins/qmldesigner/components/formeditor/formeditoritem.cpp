@@ -26,7 +26,6 @@
 #include "formeditoritem.h"
 #include "formeditorscene.h"
 
-#include <variantproperty.h>
 #include <bindingproperty.h>
 
 #include <modelnode.h>
@@ -444,6 +443,8 @@ void FormEditorItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *, 
                     || painterTransform.isRotating())
                 painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
 
+            painter->setClipRegion(boundingRect().toRect());
+
             if (m_blurContent)
                 painter->drawPixmap(m_paintedBoundingRect.topLeft(), qmlItemNode().instanceBlurredRenderPixmap());
             else
@@ -627,6 +628,7 @@ void FormEditorFlowActionItem::paint(QPainter *painter, const QStyleOptionGraphi
     if (qmlItemNode().modelNode().hasAuxiliaryData("color"))
         flowColor = qmlItemNode().modelNode().auxiliaryData("color").value<QColor>();
 
+    const qreal scaleFactor = viewportTransform().m11();
     qreal width = 2;
 
     if (qmlItemNode().modelNode().hasAuxiliaryData("width"))
@@ -720,7 +722,7 @@ public:
             if (from == node.rootModelNode()) {
                 isStartLine = true;
             } else {
-                for (const ModelNode &wildcard : QmlFlowViewNode(node.rootModelNode()).wildcards()) {
+                for (const ModelNode wildcard : QmlFlowViewNode(node.rootModelNode()).wildcards()) {
                     if (wildcard.bindingProperty("target").resolveToModelNode() == node.modelNode()) {
                         from = wildcard;
                         isWildcardLine = true;
@@ -812,46 +814,8 @@ static bool horizontalOverlap(const QRectF &from, const QRectF &to)
     return false;
 }
 
-static void drawLabel(QPainter *painter,
-                      const QPainterPath &path,
-                      const QString &text,
-                      const qreal percent,
-                      const qreal offset,
-                      bool flipSide)
-{
-    if (text.isEmpty())
-        return;
-
-    const int flags = Qt::AlignHCenter | Qt::AlignVCenter | Qt::TextDontClip;
-
-    QPointF pos = path.pointAtPercent(percent);
-    qreal angle = path.angleAtPercent(percent);
-
-    QLineF tmp(pos, QPointF(10, 10));
-    tmp.setLength(offset);
-    tmp.setAngle(angle + (flipSide ? 270 : 90));
-
-    QRectF textRect(0, 0, 100, 50);
-    textRect.moveCenter(tmp.p2());
-
-    auto normalizeAngle = [](int angle) {
-        int newAngle = angle;
-        while (newAngle <= -90) newAngle += 180;
-        while (newAngle > 90) newAngle -= 180;
-        return newAngle;
-    };
-
-    painter->save();
-    painter->translate(textRect.center());
-    painter->rotate(-normalizeAngle(angle));
-    painter->translate(-textRect.center());
-    painter->drawText(textRect, flags, text);
-    painter->restore();
-}
-
 static void drawArrow(QPainter *painter,
-                      const QPointF &point,
-                      const qreal &angle,
+                      const QLineF &line,
                       int arrowLength,
                       int arrowWidth)
 {
@@ -861,8 +825,8 @@ static void drawArrow(QPainter *painter,
 
     painter->save();
 
-    painter->translate(point);
-    painter->rotate(-angle);
+    painter->translate(line.p2());
+    painter->rotate(-line.angle());
     painter->drawLine(leftP, peakP);
     painter->drawLine(rightP, peakP);
 
@@ -1065,8 +1029,7 @@ static QPainterPath sShapedConnection(const QPointF &start,
 static void paintConnection(QPainter *painter,
                             const QRectF &from,
                             const QRectF &to,
-                            const ConnectionStyle &style,
-                            const QString &label)
+                            const ConnectionStyle &style)
 {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
@@ -1163,17 +1126,10 @@ static void paintConnection(QPainter *painter,
     pen.setStyle(Qt::SolidLine);
     painter->setPen(pen);
 
-    qreal anglePercent = 1.0;
-
-    if (extraLine && style.bezier < 80)
-        anglePercent = 1.0 - qMin(1.0, (80 - style.bezier) / 10.0) * 0.05;
-
-    drawArrow(painter, endP, path.angleAtPercent(anglePercent), arrowLength, arrowWidth);
+    drawArrow(painter, QLineF(path.pointAtPercent(0.9), endP), arrowLength, arrowWidth);
 
     painter->setBrush(Qt::white);
     painter->drawEllipse(startP, arrowLength / 3, arrowLength / 3);
-
-    drawLabel(painter, path, label, style.labelPosition / 100.0, style.labelOffset, style.labelFlipSide);
 
     painter->restore();
 }
@@ -1304,35 +1260,10 @@ void FormEditorTransitionItem::paint(QPainter *painter, const QStyleOptionGraphi
     if (qmlItemNode().modelNode().hasAuxiliaryData("type"))
         style.type = static_cast<ConnectionType>(qmlItemNode().modelNode().auxiliaryData("type").toInt());
 
-
-    QFont font = painter->font();
-    font.setPixelSize(16 / scaleFactor);
-    painter->setFont(font);
-
-    QString label;
-
-    if (qmlItemNode().modelNode().hasBindingProperty("condition"))
-        label = qmlItemNode().modelNode().bindingProperty("condition").expression();
-
-    if (qmlItemNode().modelNode().hasVariantProperty("question"))
-        label = qmlItemNode().modelNode().variantProperty("question").value().toString();
-
-    style.labelOffset = 14 / scaleFactor;
-
-    style.labelPosition = 50.0;
-
-    if (qmlItemNode().modelNode().hasAuxiliaryData("labelPosition"))
-        style.labelPosition = qmlItemNode().modelNode().auxiliaryData("labelPosition").toReal();
-
-    style.labelFlipSide = false;
-
-    if (qmlItemNode().modelNode().hasAuxiliaryData("labelFlipSide"))
-        style.labelFlipSide = qmlItemNode().modelNode().auxiliaryData("labelFlipSide").toBool();
-
     if (resolved.isStartLine)
         fromRect.translate(0, style.outOffset);
 
-    paintConnection(painter, fromRect, toRect, style, label);
+    paintConnection(painter, fromRect, toRect, style);
 
     if (resolved.isStartLine) {
 
@@ -1414,6 +1345,7 @@ void FormEditorFlowDecisionItem::paint(QPainter *painter, const QStyleOptionGrap
     if (qmlItemNode().modelNode().hasAuxiliaryData("color"))
         flowColor = qmlItemNode().modelNode().auxiliaryData("color").value<QColor>();
 
+    const qreal scaleFactor = viewportTransform().m11();
     qreal width = 2;
 
     if (qmlItemNode().modelNode().hasAuxiliaryData("width"))

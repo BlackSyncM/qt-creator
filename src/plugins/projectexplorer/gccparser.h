@@ -33,26 +33,25 @@
 
 namespace ProjectExplorer {
 
-class PROJECTEXPLORER_EXPORT GccParser : public ProjectExplorer::OutputTaskParser
+class PROJECTEXPLORER_EXPORT GccParser : public ProjectExplorer::IOutputParser
 {
     Q_OBJECT
 
 public:
     GccParser();
 
-    static Core::Id id();
+    void stdError(const QString &line) override;
+    void stdOutput(const QString &line) override;
 
-    static QList<OutputLineParser *> gccParserSuite();
+    static Core::Id id();
 
 protected:
     void newTask(const Task &task);
-    void flush() override;
+    void doFlush() override;
 
-    void amendDescription(const QString &desc);
+    void amendDescription(const QString &desc, bool monospaced);
 
 private:
-    Result handleLine(const QString &line, Utils::OutputFormat type) override;
-
     QRegularExpression m_regExp;
     QRegularExpression m_regExpIncluded;
     QRegularExpression m_regExpGccNames;

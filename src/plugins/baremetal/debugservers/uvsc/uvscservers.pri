@@ -1,7 +1,6 @@
 HEADERS += \
     $$PWD/simulatoruvscserverprovider.h \
     $$PWD/stlinkuvscserverprovider.h \
-    $$PWD/jlinkuvscserverprovider.h \
     $$PWD/uvproject.h \
     $$PWD/uvprojectwriter.h \
     $$PWD/uvscserverprovider.h \
@@ -20,7 +19,6 @@ HEADERS += \
 SOURCES += \
     $$PWD/simulatoruvscserverprovider.cpp \
     $$PWD/stlinkuvscserverprovider.cpp \
-    $$PWD/jlinkuvscserverprovider.cpp \
     $$PWD/uvproject.cpp \
     $$PWD/uvprojectwriter.cpp \
     $$PWD/uvscserverprovider.cpp \

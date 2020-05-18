@@ -37,6 +37,10 @@
 
 #include <QFutureWatcher>
 
+QT_BEGIN_NAMESPACE
+class QTimer;
+QT_END_NAMESPACE
+
 namespace CppTools { class CppProjectUpdater; }
 namespace ProjectExplorer { class Kit; }
 namespace Utils { class FileSystemWatcher; }
@@ -73,6 +77,7 @@ public:
     std::unique_ptr<CppTools::CppProjectUpdater> m_cppCodeModelUpdater;
     MimeBinaryCache m_mimeBinaryCache;
     QByteArray m_projectFileHash;
+    QTimer * const m_parseDelay;
     CompilationDbParser *m_parser = nullptr;
     Utils::FileSystemWatcher * const m_deployFileWatcher;
 };

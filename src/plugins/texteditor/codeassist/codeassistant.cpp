@@ -252,20 +252,19 @@ void CodeAssistantPrivate::requestProposal(AssistReason reason,
         break;
     }
     case IAssistProvider::Asynchronous: {
-        processor->setAsyncCompletionAvailableHandler([this, reason, processor](IAssistProposal *newProposal) {
-            // do not delete this processor directly since this function is called from within the processor
-            QTimer::singleShot(0, [processor]() { delete processor; });
-            if (processor != m_asyncProcessor)
-                return;
-            invalidateCurrentRequestData();
-            if (processor && processor->needsRestart() && m_receivedContentWhileWaiting) {
-                delete newProposal;
-                m_receivedContentWhileWaiting = false;
-                requestProposal(reason, m_assistKind, m_requestProvider);
-            } else {
-                displayProposal(newProposal, reason);
-                emit q->finished();
-            }
+        processor->setAsyncCompletionAvailableHandler(
+            [this, reason](IAssistProposal *newProposal){
+                if (m_asyncProcessor && m_asyncProcessor->needsRestart() && m_receivedContentWhileWaiting) {
+                    delete newProposal;
+                    m_receivedContentWhileWaiting = false;
+                    invalidateCurrentRequestData();
+                    requestProposal(reason, m_assistKind, m_requestProvider);
+                } else {
+                    invalidateCurrentRequestData();
+                    displayProposal(newProposal, reason);
+
+                    emit q->finished();
+                }
         });
 
         // If there is a proposal, nothing asynchronous happened...
@@ -275,7 +274,6 @@ void CodeAssistantPrivate::requestProposal(AssistReason reason,
         } else if (!processor->running()) {
             delete processor;
         } else { // ...async request was triggered
-            QTC_CHECK(!m_asyncProcessor);
             m_asyncProcessor = processor;
         }
 
@@ -290,10 +288,8 @@ void CodeAssistantPrivate::cancelCurrentRequest()
         m_requestRunner->setDiscardProposal(true);
         disconnect(m_runnerConnection);
     }
-    if (m_asyncProcessor) {
+    if (m_asyncProcessor)
         m_asyncProcessor->cancel();
-        delete m_asyncProcessor;
-    }
     invalidateCurrentRequestData();
 }
 

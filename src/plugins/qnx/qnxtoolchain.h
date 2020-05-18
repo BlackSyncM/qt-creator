@@ -33,8 +33,6 @@ namespace Internal {
 
 class QnxToolChain : public ProjectExplorer::GccToolChain
 {
-    Q_DECLARE_TR_FUNCTIONS(Qnx::Internal::QnxToolChain)
-
 public:
     QnxToolChain();
 
@@ -67,6 +65,8 @@ private:
 
 class QnxToolChainFactory : public ProjectExplorer::ToolChainFactory
 {
+    Q_OBJECT
+
 public:
     QnxToolChainFactory();
 

@@ -54,6 +54,7 @@ VcsEditorFactory::VcsEditorFactory(const VcsBaseEditorParameters *parameters,
                                    const EditorWidgetCreator editorWidgetCreator,
                                    std::function<void(const QString &, const QString &)> describeFunc)
 {
+    setProperty("VcsEditorFactoryName", QByteArray(parameters->id));
     setId(parameters->id);
     setDisplayName(QCoreApplication::translate("VCS", parameters->displayName));
     if (QLatin1String(parameters->mimeType) != QLatin1String(DiffEditor::Constants::DIFF_EDITOR_MIMETYPE))

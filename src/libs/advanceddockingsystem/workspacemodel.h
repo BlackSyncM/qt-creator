@@ -77,9 +77,6 @@ public:
     void resetWorkspace(const QString &workspace);
     void switchToWorkspace(const QString &workspace);
 
-    void importWorkspace(const QString &workspace);
-    void exportWorkspace(const QString &target, const QString &workspace);
-
 private:
     void runWorkspaceNameInputDialog(WorkspaceNameInputDialog *workspaceInputDialog,
                                      std::function<void(const QString &)> createWorkspace);

@@ -86,7 +86,7 @@ QString AbstractPackagingStep::cachedPackageDirectory() const
 
 QString AbstractPackagingStep::packageDirectory() const
 {
-    return buildDirectory().toString();
+    return buildConfiguration()->buildDirectory().toString();
 }
 
 bool AbstractPackagingStep::isPackagingNeeded() const

@@ -151,10 +151,8 @@ void DiagramView::dropEvent(QDropEvent *event)
 
 void DiagramView::onSceneRectChanged(const QRectF &sceneRect)
 {
-    // add some adjustment to all 4 sides
-    static const qreal ADJUSTMENT = 80;
-    QRectF rect = sceneRect.adjusted(-ADJUSTMENT, -ADJUSTMENT, ADJUSTMENT, ADJUSTMENT);
-    setSceneRect(rect);
+    // TODO add some adjustment to all 4 sides?
+    setSceneRect(sceneRect);
 }
 
 } // namespace qmt

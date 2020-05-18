@@ -4,7 +4,6 @@ QBS_DIRS = \
     qbscorelib \
     qbsapps \
     qbslibexec \
-    qbsmsbuildlib \
     qbsplugins \
     qbsstatic
 
@@ -13,10 +12,8 @@ qbsapps.subdir = qbs/src/app
 qbsapps.depends = qbscorelib
 qbslibexec.subdir = qbs/src/libexec
 qbslibexec.depends = qbscorelib
-qbsmsbuildlib.subdir = qbs/src/lib/msbuild
-qbsmsbuildlib.depends = qbscorelib
 qbsplugins.subdir = qbs/src/plugins
-qbsplugins.depends = qbscorelib qbsmsbuildlib
+qbsplugins.depends = qbscorelib
 qbsstatic.file = qbs/static.pro
 
 exists(qbs/qbs.pro) {

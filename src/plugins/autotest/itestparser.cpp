@@ -33,8 +33,7 @@ namespace Autotest {
 
 static CppParser *s_parserInstance = nullptr;
 
-CppParser::CppParser(ITestFramework *framework)
-    : ITestParser(framework)
+CppParser::CppParser()
 {
     s_parserInstance = this;
 }

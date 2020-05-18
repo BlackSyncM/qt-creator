@@ -60,10 +60,10 @@ using namespace Utils;
 namespace Python {
 namespace Internal {
 
-class PythonOutputLineParser : public OutputLineParser
+class PythonOutputFormatter : public OutputFormatter
 {
 public:
-    PythonOutputLineParser()
+    PythonOutputFormatter()
         // Note that moc dislikes raw string literals.
         : filePattern("^(\\s*)(File \"([^\"]+)\", line (\\d+), .*$)")
     {
@@ -71,64 +71,66 @@ public:
     }
 
 private:
-    Result handleLine(const QString &text, OutputFormat format) final
+    void appendMessage(const QString &text, OutputFormat format) final
     {
-        if (!m_inTraceBack) {
-            m_inTraceBack = format == StdErrFormat
-                    && text.startsWith("Traceback (most recent call last):");
-            if (m_inTraceBack)
-                return Status::InProgress;
-            return Status::NotHandled;
+        const bool isTrace = (format == StdErrFormat
+                              || format == StdErrFormatSameLine)
+                          && (text.startsWith("Traceback (most recent call last):")
+                              || text.startsWith("\nTraceback (most recent call last):"));
+
+        if (!isTrace) {
+            OutputFormatter::appendMessage(text, format);
+            return;
         }
 
-        const Core::Id category(PythonErrorTaskCategory);
-        const QRegularExpressionMatch match = filePattern.match(text);
-        if (match.hasMatch()) {
-            const LinkSpec link(match.capturedStart(2), match.capturedLength(2), match.captured(2));
-            const auto fileName = FilePath::fromString(match.captured(3));
-            const int lineNumber = match.capturedRef(4).toInt();
-            m_tasks.append({Task::Warning, QString(), fileName, lineNumber, category});
-            return {Status::InProgress, {link}};
-        }
+        const QTextCharFormat frm = charFormat(format);
+        const Core::Id id(PythonErrorTaskCategory);
+        QVector<Task> tasks;
+        const QStringList lines = text.split('\n');
+        unsigned taskId = unsigned(lines.size());
 
-        Status status = Status::InProgress;
-        if (text.startsWith(' ')) {
-            // Neither traceback start, nor file, nor error message line.
-            // Not sure if that can actually happen.
-            if (m_tasks.isEmpty()) {
-                m_tasks.append({Task::Warning, text.trimmed(), {}, -1, category});
+        for (const QString &line : lines) {
+            const QRegularExpressionMatch match = filePattern.match(line);
+            if (match.hasMatch()) {
+                QTextCursor tc = plainTextEdit()->textCursor();
+                tc.movePosition(QTextCursor::End, QTextCursor::MoveAnchor);
+                tc.insertText('\n' + match.captured(1));
+                tc.insertText(match.captured(2), linkFormat(frm, match.captured(2)));
+
+                const auto fileName = FilePath::fromString(match.captured(3));
+                const int lineNumber = match.capturedRef(4).toInt();
+                Task task(Task::Warning,
+                                           QString(), fileName, lineNumber, id);
+                task.taskId = --taskId;
+                tasks.append(task);
             } else {
-                Task &task = m_tasks.back();
-                if (!task.summary.isEmpty())
-                    task.summary += ' ';
-                task.summary += text.trimmed();
+                if (!tasks.isEmpty()) {
+                    Task &task = tasks.back();
+                    if (!task.description.isEmpty())
+                        task.description += ' ';
+                    task.description += line.trimmed();
+                }
+                OutputFormatter::appendMessage('\n' + line, format);
             }
-        } else {
-            // The actual exception. This ends the traceback.
-            TaskHub::addTask({Task::Error, text, {}, -1, category});
-            for (auto rit = m_tasks.crbegin(), rend = m_tasks.crend(); rit != rend; ++rit)
-                TaskHub::addTask(*rit);
-            m_tasks.clear();
-            m_inTraceBack = false;
-            status = Status::Done;
         }
-        return status;
+        if (!tasks.isEmpty()) {
+            tasks.back().type = Task::Error;
+            for (auto rit = tasks.crbegin(), rend = tasks.crend(); rit != rend; ++rit)
+                TaskHub::addTask(*rit);
+        }
     }
 
-    bool handleLink(const QString &href) final
+    void handleLink(const QString &href) final
     {
         const QRegularExpressionMatch match = filePattern.match(href);
         if (!match.hasMatch())
-            return false;
+            return;
         const QString fileName = match.captured(3);
         const int lineNumber = match.capturedRef(4).toInt();
         Core::EditorManager::openEditorAt(fileName, lineNumber);
-        return true;
     }
 
     const QRegularExpression filePattern;
-    QList<Task> m_tasks;
-    bool m_inTraceBack;
 };
 
 ////////////////////////////////////////////////////////////////
@@ -331,10 +333,10 @@ PythonRunConfigurationFactory::PythonRunConfigurationFactory()
 
 PythonOutputFormatterFactory::PythonOutputFormatterFactory()
 {
-    setFormatterCreator([](Target *t) -> QList<OutputLineParser *> {
-        if (t && t->project()->mimeType() == Constants::C_PY_MIMETYPE)
-            return {new PythonOutputLineParser};
-        return {};
+    setFormatterCreator([](Target *t) -> OutputFormatter * {
+        if (t->project()->mimeType() == Constants::C_PY_MIMETYPE)
+            return new PythonOutputFormatter;
+        return nullptr;
     });
 }
 

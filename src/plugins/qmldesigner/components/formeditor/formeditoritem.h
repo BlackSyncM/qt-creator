@@ -66,9 +66,6 @@ public:
     int radius;
     int bezier;
     ConnectionType type;
-    qreal labelOffset;
-    qreal labelPosition;
-    bool labelFlipSide;
 };
 
 class QMLDESIGNERCORE_EXPORT FormEditorItem : public QGraphicsItem

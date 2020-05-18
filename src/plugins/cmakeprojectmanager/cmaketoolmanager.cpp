@@ -34,6 +34,8 @@
 #include <utils/qtcassert.h>
 
 using namespace Core;
+using namespace Utils;
+using namespace ProjectExplorer;
 
 namespace CMakeProjectManager {
 
@@ -137,7 +139,7 @@ void CMakeToolManager::setDefaultCMakeTool(const Id &id)
     ensureDefaultCMakeToolIsValid();
 }
 
-CMakeTool *CMakeToolManager::findByCommand(const Utils::FilePath &command)
+CMakeTool *CMakeToolManager::findByCommand(const FilePath &command)
 {
     return Utils::findOrDefault(d->m_cmakeTools, Utils::equal(&CMakeTool::cmakeExecutable, command));
 }

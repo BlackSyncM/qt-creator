@@ -46,7 +46,6 @@ public:
 
     IconShape &operator=(const IconShape &rhs);
 
-    bool isEmpty() const;
     QSizeF size() const;
     void setSize(const QSizeF &size);
 

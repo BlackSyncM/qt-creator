@@ -56,7 +56,6 @@ RefactoringEngine::RefactoringEngine(ClangBackEnd::RefactoringServerInterface &s
       m_filePathCache(filePathCache),
       m_symbolQuery(symbolQuery)
 {
-    Q_UNUSED(m_client)
 }
 
 RefactoringEngine::~RefactoringEngine() = default;

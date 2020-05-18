@@ -33,20 +33,21 @@
 
 namespace ProjectExplorer {
 
-class PROJECTEXPLORER_EXPORT MsvcParser :  public ProjectExplorer::OutputTaskParser
+class PROJECTEXPLORER_EXPORT MsvcParser :  public ProjectExplorer::IOutputParser
 {
     Q_OBJECT
 
 public:
     MsvcParser();
 
+    void stdOutput(const QString &line) override;
+    void stdError(const QString &line) override;
+
     static Core::Id id();
 
 private:
-    Result handleLine(const QString &line, Utils::OutputFormat type) override;
-    void flush() override;
-
-    Result processCompileLine(const QString &line);
+    void doFlush() override;
+    bool processCompileLine(const QString &line);
 
     QRegularExpression m_compileRegExp;
     QRegularExpression m_additionalInfoRegExp;
@@ -55,16 +56,18 @@ private:
     int m_lines = 0;
 };
 
-class PROJECTEXPLORER_EXPORT ClangClParser :  public ProjectExplorer::OutputTaskParser
+class PROJECTEXPLORER_EXPORT ClangClParser :  public ProjectExplorer::IOutputParser
 {
     Q_OBJECT
 
 public:
     ClangClParser();
 
+    void stdOutput(const QString &line) override;
+    void stdError(const QString &line) override;
+
 private:
-    Result handleLine(const QString &line, Utils::OutputFormat type) override;
-    void flush() override;
+    void doFlush() override;
 
     const QRegularExpression m_compileRegExp;
     Task m_lastTask;

@@ -44,7 +44,6 @@ public:
     int expiryDays = 1;
     bool copyToClipboard = true;
     bool displayOutput = true;
-    bool publicPaste = false;
 };
 
 inline bool operator==(const Settings &s1, const Settings &s2) { return s1.equals(s2); }

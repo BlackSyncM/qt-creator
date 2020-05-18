@@ -36,15 +36,14 @@ static const char expiryDaysKeyC[] = "ExpiryDays";
 static const char defaultProtocolKeyC[] = "DefaultProtocol";
 static const char copyToClipboardKeyC[] = "CopyToClipboard";
 static const char displayOutputKeyC[] = "DisplayOutput";
-static const char publicPasteKeyC[] = "DisplayOutput";
 
 namespace CodePaster {
 
 bool Settings::equals(const Settings &rhs) const
 {
     return copyToClipboard == rhs.copyToClipboard && displayOutput == rhs.displayOutput
-            && expiryDays == rhs.expiryDays && username == rhs.username
-            && protocol == rhs.protocol && publicPaste == rhs.publicPaste;
+           && expiryDays == rhs.expiryDays && username == rhs.username
+           && protocol == rhs.protocol;
 }
 
 void Settings::toSettings(QSettings *settings) const
@@ -55,7 +54,6 @@ void Settings::toSettings(QSettings *settings) const
     settings->setValue(QLatin1String(expiryDaysKeyC), expiryDays);
     settings->setValue(QLatin1String(copyToClipboardKeyC), copyToClipboard);
     settings->setValue(QLatin1String(displayOutputKeyC), displayOutput);
-    settings->setValue(publicPasteKeyC, publicPaste);
     settings->endGroup();
 }
 
@@ -68,7 +66,6 @@ void Settings::fromSettings(const QSettings *settings)
     protocol = settings->value(rootKey + QLatin1String(defaultProtocolKeyC), PasteBinDotComProtocol::protocolName()).toString();
     copyToClipboard = settings->value(rootKey + QLatin1String(copyToClipboardKeyC), true).toBool();
     displayOutput = settings->value(rootKey + QLatin1String(displayOutputKeyC), true).toBool();
-    publicPaste = settings->value(rootKey + publicPasteKeyC, false).toBool();
 }
 
 } // namespace CodePaster

@@ -28,7 +28,6 @@
 #include <coreplugin/actionmanager/commandmappings.h>
 #include <coreplugin/dialogs/ioptionspage.h>
 
-#include <QGridLayout>
 #include <QKeySequence>
 #include <QPointer>
 #include <QPushButton>
@@ -52,7 +51,7 @@ class ShortcutSettingsWidget;
 struct ShortcutItem
 {
     Command *m_cmd;
-    QList<QKeySequence> m_keys;
+    QKeySequence m_key;
     QTreeWidgetItem *m_item;
 };
 
@@ -79,33 +78,6 @@ private:
     mutable int m_preferredWidth = -1;
     std::array<int, 4> m_key;
     int m_keyNum = 0;
-};
-
-class ShortcutInput : public QObject
-{
-    Q_OBJECT
-public:
-    ShortcutInput();
-    ~ShortcutInput();
-
-    void addToLayout(QGridLayout *layout, int row);
-
-    void setKeySequence(const QKeySequence &key);
-    QKeySequence keySequence() const;
-
-    using ConflictChecker = std::function<bool(QKeySequence)>;
-    void setConflictChecker(const ConflictChecker &fun);
-
-signals:
-    void changed();
-    void showConflictsRequested();
-
-private:
-    ConflictChecker m_conflictChecker;
-    QPointer<QLabel> m_shortcutLabel;
-    QPointer<Utils::FancyLineEdit> m_shortcutEdit;
-    QPointer<ShortcutButton> m_shortcutButton;
-    QPointer<QLabel> m_warningLabel;
 };
 
 class ShortcutSettings final : public IOptionsPage

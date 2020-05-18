@@ -49,7 +49,6 @@ public:
     bool hasCapability(unsigned cap) const final;
 
     void setRegisterValue(const QString &name, const QString &value) final;
-    void setPeripheralRegisterValue(quint64 address, quint64 value) final;
 
     void executeStepOver(bool byInstruction) final;
     void executeStepIn(bool byInstruction) final;
@@ -73,8 +72,6 @@ public:
     void fetchDisassembler(DisassemblerAgent *agent) final;
 
     void reloadRegisters() final;
-    void reloadPeripheralRegisters() final;
-
     void reloadFullStack() final;
 
 private slots:
@@ -87,7 +84,6 @@ private slots:
     void handleThreadInfo();
     void handleReloadStack(bool isFull);
     void handleReloadRegisters();
-    void handleReloadPeripheralRegisters(const QList<quint64> &addresses);
     void handleUpdateLocals(bool partial);
     void handleInsertBreakpoint(const QString &exp, const Breakpoint &bp);
     void handleRemoveBreakpoint(const Breakpoint &bp);

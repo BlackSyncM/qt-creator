@@ -69,15 +69,10 @@ static bool compilerExists(const FilePath &compilerPath)
 static QString cppLanguageOption(const FilePath &compiler)
 {
     const QString baseName = compiler.toFileInfo().baseName();
-    if (baseName == "iccarm" || baseName == "iccrl78"
-            || baseName == "iccrh850" || baseName == "iccrx"
-            || baseName == "iccriscv") {
+    if (baseName == "iccarm" || baseName == "iccrl78")
         return QString("--c++");
-    }
     if (baseName == "icc8051" || baseName == "iccavr"
-            || baseName == "iccstm8" || baseName == "icc430"
-            || baseName == "iccv850" || baseName == "icc78k"
-            || baseName == "iccavr32" || baseName == "iccsh") {
+            || baseName == "iccstm8" || baseName == "icc430") {
         return QString("--ec++");
     }
     return {};
@@ -196,26 +191,12 @@ static Abi::Architecture guessArchitecture(const Macros &macros)
             return Abi::Architecture::Mcs51Architecture;
         if (macro.key == "__ICCAVR__")
             return Abi::Architecture::AvrArchitecture;
-        if (macro.key == "__ICCAVR32__")
-            return Abi::Architecture::Avr32Architecture;
         if (macro.key == "__ICCSTM8__")
             return Abi::Architecture::Stm8Architecture;
         if (macro.key == "__ICC430__")
             return Abi::Architecture::Msp430Architecture;
         if (macro.key == "__ICCRL78__")
             return Abi::Architecture::Rl78Architecture;
-        if (macro.key == "__ICCV850__")
-            return Abi::Architecture::V850Architecture;
-        if (macro.key == "__ICCRH850__")
-            return Abi::Architecture::Rh850Architecture;
-        if (macro.key == "__ICCRX__")
-            return Abi::Architecture::RxArchitecture;
-        if (macro.key == "__ICC78K__")
-            return Abi::Architecture::K78Architecture;
-        if (macro.key == "__ICCSH__")
-            return Abi::Architecture::ShArchitecture;
-        if (macro.key == "__ICCRISCV__")
-            return Abi::Architecture::RiscVArchitecture;
     }
     return Abi::Architecture::UnknownArchitecture;
 }
@@ -234,19 +215,12 @@ static Abi::BinaryFormat guessFormat(Abi::Architecture arch)
 {
     if (arch == Abi::Architecture::ArmArchitecture
             || arch == Abi::Architecture::Stm8Architecture
-            || arch == Abi::Architecture::Rl78Architecture
-            || arch == Abi::Architecture::Rh850Architecture
-            || arch == Abi::Architecture::RxArchitecture
-            || arch == Abi::Architecture::ShArchitecture
-            || arch == Abi::Architecture::RiscVArchitecture) {
+            || arch == Abi::Architecture::Rl78Architecture) {
         return Abi::BinaryFormat::ElfFormat;
     }
     if (arch == Abi::Architecture::Mcs51Architecture
             || arch == Abi::Architecture::AvrArchitecture
-            || arch == Abi::Architecture::Avr32Architecture
-            || arch == Abi::Architecture::Msp430Architecture
-            || arch == Abi::Architecture::V850Architecture
-            || arch == Abi::Architecture::K78Architecture) {
+            || arch == Abi::Architecture::Msp430Architecture) {
         return Abi::BinaryFormat::UbrofFormat;
     }
     return Abi::BinaryFormat::UnknownFormat;
@@ -264,7 +238,8 @@ static QString buildDisplayName(Abi::Architecture arch, Core::Id language,
 {
     const auto archName = Abi::toString(arch);
     const auto langName = ToolChainManager::displayNameOfLanguageId(language);
-    return IarToolChain::tr("IAREW %1 (%2, %3)").arg(version, langName, archName);
+    return IarToolChain::tr("IAREW %1 (%2, %3)")
+            .arg(version, langName, archName);
 }
 
 // IarToolChain
@@ -272,7 +247,7 @@ static QString buildDisplayName(Abi::Architecture arch, Core::Id language,
 IarToolChain::IarToolChain() :
     ToolChain(Constants::IAREW_TOOLCHAIN_TYPEID)
 {
-    setTypeDisplayName(Internal::IarToolChain::tr("IAREW"));
+    setTypeDisplayName(Internal::IarToolChainFactory::tr("IAREW"));
 }
 
 void IarToolChain::setTargetAbi(const Abi &abi)
@@ -380,9 +355,9 @@ void IarToolChain::addToEnvironment(Environment &env) const
     }
 }
 
-QList<Utils::OutputLineParser *> IarToolChain::createOutputParsers() const
+IOutputParser *IarToolChain::outputParser() const
 {
-    return {new IarParser()};
+    return new IarParser;
 }
 
 QVariantMap IarToolChain::toMap() const
@@ -441,7 +416,7 @@ FilePath IarToolChain::makeCommand(const Environment &env) const
 
 IarToolChainFactory::IarToolChainFactory()
 {
-    setDisplayName(IarToolChain::tr("IAREW"));
+    setDisplayName(tr("IAREW"));
     setSupportedToolChainType(Constants::IAREW_TOOLCHAIN_TYPEID);
     setSupportedLanguages({ProjectExplorer::Constants::C_LANGUAGE_ID,
                            ProjectExplorer::Constants::CXX_LANGUAGE_ID});
@@ -466,19 +441,12 @@ QList<ToolChain *> IarToolChainFactory::autoDetect(const QList<ToolChain *> &alr
         QString registryKey;
         QString subExePath;
     } knowToolchains[] = {
-        {{"EWARM"}, {"/arm/bin/iccarm.exe"}},
-        {{"EWAVR"}, {"/avr/bin/iccavr.exe"}},
-        {{"EWAVR32"}, {"/avr32/bin/iccavr32.exe"}},
-        {{"EW8051"}, {"/8051/bin/icc8051.exe"}},
-        {{"EWSTM8"}, {"/stm8/bin/iccstm8.exe"}},
-        {{"EW430"}, {"/430/bin/icc430.exe"}},
-        {{"EWRL78"}, {"/rl78/bin/iccrl78.exe"}},
-        {{"EWV850"}, {"/v850/bin/iccv850.exe"}},
-        {{"EWRH850"}, {"/rh850/bin/iccrh850.exe"}},
-        {{"EWRX"}, {"/rx/bin/iccrx.exe"}},
-        {{"EW78K"}, {"/78k/bin/icc78k.exe"}},
-        {{"EWSH"}, {"/sh/bin/iccsh.exe"}},
-        {{"EWRISCV"}, {"/riscv/bin/iccriscv.exe"}},
+        {{"EWARM"}, {"\\arm\\bin\\iccarm.exe"}},
+        {{"EWAVR"}, {"\\avr\\bin\\iccavr.exe"}},
+        {{"EW8051"}, {"\\8051\\bin\\icc8051.exe"}},
+        {{"EWSTM8"}, {"\\stm8\\bin\\iccstm8.exe"}},
+        {{"EW430"}, {"\\430\\bin\\icc430.exe"}},
+        {{"EWRL78"}, {"\\rl78\\bin\\iccrl78.exe"}},
     };
 
     QSettings registry(kRegistryNode, QSettings::NativeFormat);
@@ -595,7 +563,7 @@ void IarToolChainConfigWidget::applyImpl()
 
     const auto tc = static_cast<IarToolChain *>(toolChain());
     const QString displayName = tc->displayName();
-    tc->setCompilerCommand(m_compilerCommand->filePath());
+    tc->setCompilerCommand(m_compilerCommand->fileName());
     tc->setTargetAbi(m_abiWidget->currentAbi());
     tc->setDisplayName(displayName);
 
@@ -611,7 +579,7 @@ void IarToolChainConfigWidget::applyImpl()
 bool IarToolChainConfigWidget::isDirtyImpl() const
 {
     const auto tc = static_cast<IarToolChain *>(toolChain());
-    return m_compilerCommand->filePath() != tc->compilerCommand()
+    return m_compilerCommand->fileName() != tc->compilerCommand()
             || m_abiWidget->currentAbi() != tc->targetAbi()
             ;
 }
@@ -626,15 +594,15 @@ void IarToolChainConfigWidget::setFromToolchain()
 {
     const QSignalBlocker blocker(this);
     const auto tc = static_cast<IarToolChain *>(toolChain());
-    m_compilerCommand->setFilePath(tc->compilerCommand());
+    m_compilerCommand->setFileName(tc->compilerCommand());
     m_abiWidget->setAbis({}, tc->targetAbi());
-    const bool haveCompiler = compilerExists(m_compilerCommand->filePath());
+    const bool haveCompiler = compilerExists(m_compilerCommand->fileName());
     m_abiWidget->setEnabled(haveCompiler && !tc->isAutoDetected());
 }
 
 void IarToolChainConfigWidget::handleCompilerCommandChange()
 {
-    const FilePath compilerPath = m_compilerCommand->filePath();
+    const FilePath compilerPath = m_compilerCommand->fileName();
     const bool haveCompiler = compilerExists(compilerPath);
     if (haveCompiler) {
         const auto env = Environment::systemEnvironment();

@@ -96,9 +96,7 @@ static QString normalizeTestName(const QString &testname)
 const TestTreeItem *GTestResult::findTestTreeItem() const
 {
     auto id = Core::Id(Constants::FRAMEWORK_PREFIX).withSuffix(GTest::Constants::FRAMEWORK_NAME);
-    ITestFramework *framework = TestFrameworkManager::frameworkForId(id);
-    QTC_ASSERT(framework, return nullptr);
-    const TestTreeItem *rootNode = framework->rootNode();
+    const TestTreeItem *rootNode = TestFrameworkManager::instance()->rootNodeForTestFramework(id);
     if (!rootNode)
         return nullptr;
 

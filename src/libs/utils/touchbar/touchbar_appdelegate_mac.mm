@@ -29,7 +29,6 @@
 #include <stack>
 
 #import <AppKit/NSTouchBar.h>
-#import <AppKit/NSWindow.h>
 
 Q_GLOBAL_STATIC(Utils::Internal::ApplicationDelegate, staticApplicationDelegate);
 
@@ -149,11 +148,4 @@ using namespace Utils::Internal;
     [anInvocation invokeWithTarget:self.qtDelegate];
 }
 
-// Work around QTBUG-61707
-- (void)applicationWillFinishLaunching:(NSNotification*)notify
-{
-    Q_UNUSED(notify)
-    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"NSFullScreenMenuItemEverywhere"];
-    NSWindow.allowsAutomaticWindowTabbing = NO;
-}
 @end

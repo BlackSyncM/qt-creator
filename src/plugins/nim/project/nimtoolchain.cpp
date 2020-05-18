@@ -49,7 +49,7 @@ NimToolChain::NimToolChain(Core::Id typeId)
     , m_version(std::make_tuple(-1,-1,-1))
 {
     setLanguage(Constants::C_NIMLANGUAGE_ID);
-    setTypeDisplayName(tr("Nim"));
+    setTypeDisplayName(NimToolChainFactory::tr("Nim"));
 }
 
 Abi NimToolChain::targetAbi() const
@@ -120,9 +120,9 @@ void NimToolChain::setCompilerCommand(const FilePath &compilerCommand)
     parseVersion(compilerCommand, m_version);
 }
 
-QList<Utils::OutputLineParser *> NimToolChain::createOutputParsers() const
+IOutputParser *NimToolChain::outputParser() const
 {
-    return {};
+    return nullptr;
 }
 
 std::unique_ptr<ProjectExplorer::ToolChainConfigWidget> NimToolChain::createConfigurationWidget()

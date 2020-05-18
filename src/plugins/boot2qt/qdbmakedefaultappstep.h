@@ -25,15 +25,20 @@
 
 #pragma once
 
-#include <projectexplorer/buildstep.h>
+#include <remotelinux/abstractremotelinuxdeploystep.h>
 
 namespace Qdb {
 namespace Internal {
 
-class QdbMakeDefaultAppStepFactory final : public ProjectExplorer::BuildStepFactory
+class QdbMakeDefaultAppStep : public RemoteLinux::AbstractRemoteLinuxDeployStep
 {
+    Q_OBJECT
+
 public:
-    QdbMakeDefaultAppStepFactory();
+    QdbMakeDefaultAppStep(ProjectExplorer::BuildStepList *bsl, Core::Id id);
+
+    static Core::Id stepId();
+    static QString stepDisplayName();
 };
 
 } // namespace Internal

@@ -135,6 +135,11 @@ bool SerialControl::canReUseOutputPane(const SerialControl *other) const
     return other->portName() == portName();
 }
 
+Utils::OutputFormatter *SerialControl::outputFormatter()
+{
+    return new Utils::OutputFormatter(); // TODO: custom formatter?
+}
+
 void SerialControl::appendMessage(const QString &msg, Utils::OutputFormat format)
 {
     emit appendMessageRequested(this, msg, format);

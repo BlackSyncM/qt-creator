@@ -93,18 +93,20 @@ TestSettings TestSettingsWidget::settings() const
 
 void TestSettingsWidget::populateFrameworksListWidget(const QHash<Core::Id, bool> &frameworks)
 {
-    const TestFrameworks &registered = TestFrameworkManager::registeredFrameworks();
+    TestFrameworkManager *frameworkManager = TestFrameworkManager::instance();
+    const QList<Core::Id> &registered = frameworkManager->sortedRegisteredFrameworkIds();
     m_ui.frameworkTreeWidget->clear();
-    for (const ITestFramework *framework : registered) {
-        const Core::Id id = framework->id();
-        auto item = new QTreeWidgetItem(m_ui.frameworkTreeWidget, QStringList(QLatin1String(framework->name())));
+    for (const Core::Id &id : registered) {
+        auto *item = new QTreeWidgetItem(m_ui.frameworkTreeWidget,
+                                         QStringList(frameworkManager->frameworkNameForId(id)));
         item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
         item->setCheckState(0, frameworks.value(id) ? Qt::Checked : Qt::Unchecked);
         item->setData(0, Qt::UserRole, id.toSetting());
-        item->setData(1, Qt::CheckStateRole, framework->grouping() ? Qt::Checked : Qt::Unchecked);
+        item->setData(1, Qt::CheckStateRole, frameworkManager->groupingEnabled(id) ? Qt::Checked
+                                                                                   : Qt::Unchecked);
         item->setToolTip(0, tr("Enable or disable test frameworks to be handled by the AutoTest "
                                "plugin."));
-        QString toolTip = framework->groupingToolTip();
+        QString toolTip = frameworkManager->groupingToolTip(id);
         if (toolTip.isEmpty())
             toolTip = tr("Enable or disable grouping of test cases by folder.");
         item->setToolTip(1, toolTip);
@@ -138,7 +140,7 @@ void TestSettingsWidget::onFrameworkItemChanged()
     m_ui.frameworksWarn->setVisible(true);
 }
 
-TestSettingsPage::TestSettingsPage(TestSettings *settings)
+TestSettingsPage::TestSettingsPage(const QSharedPointer<TestSettings> &settings)
     : m_settings(settings)
 {
     setId("A.AutoTest.0.General");
@@ -168,12 +170,8 @@ void TestSettingsPage::apply()
     });
     *m_settings = newSettings;
     m_settings->toSettings(Core::ICore::settings());
-
-    for (ITestFramework *framework : TestFrameworkManager::registeredFrameworks()) {
-        framework->setActive(m_settings->frameworks.value(framework->id(), false));
-        framework->setGrouping(m_settings->frameworksGrouping.value(framework->id(), false));
-    }
-
+    TestFrameworkManager *frameworkManager = TestFrameworkManager::instance();
+    frameworkManager->activateFrameworksFromSettings(m_settings);
     TestTreeModel::instance()->synchronizeTestFrameworks();
     if (!changedIds.isEmpty())
         TestTreeModel::instance()->rebuild(changedIds);

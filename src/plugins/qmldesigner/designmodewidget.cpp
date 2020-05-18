@@ -257,13 +257,13 @@ void DesignModeWidget::setup()
     m_dockManager->iconProvider().registerCustomIcon(ADS::FloatingWidgetCloseIcon, closeIcon);
 
     // Setup Actions and Menus
-    Core::ActionContainer *mview = Core::ActionManager::actionContainer(Core::Constants::M_VIEW);
+    Core::ActionContainer *mwindow = Core::ActionManager::actionContainer(Core::Constants::M_WINDOW);
     // Window > Views
-    Core::ActionContainer *mviews = Core::ActionManager::createMenu(Core::Constants::M_VIEW_VIEWS);
+    Core::ActionContainer *mviews = Core::ActionManager::actionContainer(Core::Constants::M_WINDOW_VIEWS);
     mviews->menu()->addSeparator();
     // Window > Workspaces
     Core::ActionContainer *mworkspaces = Core::ActionManager::createMenu(QmlDesigner::Constants::M_WINDOW_WORKSPACES);
-    mview->addMenu(mworkspaces, Core::Constants::G_VIEW_VIEWS);
+    mwindow->addMenu(mworkspaces, Core::Constants::G_WINDOW_VIEWS);
     mworkspaces->menu()->setTitle(tr("&Workspaces"));
     mworkspaces->setOnAllDisabledBehavior(Core::ActionContainer::Show);
     // Connect opening of the 'workspaces' menu with creation of the workspaces menu

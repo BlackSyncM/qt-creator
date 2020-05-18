@@ -35,6 +35,7 @@
 #include "behaviorsettings.h"
 #include "circularclipboard.h"
 #include "circularclipboardassist.h"
+#include "codecselector.h"
 #include "completionsettings.h"
 #include "extraencodingsettings.h"
 #include "highlighter.h"
@@ -58,7 +59,6 @@
 #include <texteditor/codeassist/completionassistprovider.h>
 #include <texteditor/codeassist/documentcontentcompletion.h>
 
-#include <coreplugin/dialogs/codecselector.h>
 #include <coreplugin/icore.h>
 #include <aggregation/aggregate.h>
 #include <coreplugin/actionmanager/actionmanager.h>
@@ -194,8 +194,6 @@ private:
             TextEditorWidget::tr("Line: %1, Col: %2")
                 .arg(line)
                 .arg(m_editor->textDocument()->tabSettings().columnAt(block.text(), column) + 1));
-        setToolTip(TextEditorWidget::tr("Cursor position: %1")
-                   .arg(QString::number(cursor.position())));
     }
 
     TextEditorWidget *m_editor;
@@ -1965,11 +1963,6 @@ void TextEditorWidget::findUsages()
     emit requestUsages(textCursor());
 }
 
-void TextEditorWidget::renameSymbolUnderCursor()
-{
-    emit requestRename(textCursor());
-}
-
 void TextEditorWidget::abortAssist()
 {
     d->m_codeAssistant.destroyContext();
@@ -2508,10 +2501,6 @@ void TextEditorWidget::keyPressEvent(QKeyEvent *e)
     case Qt::Key_Down:
     case Qt::Key_Right:
     case Qt::Key_Left:
-    case Qt::Key_PageUp:
-    case Qt::Key_PageDown:
-    case Qt::Key_Home:
-    case Qt::Key_End:
         if (HostOsInfo::isMacHost())
             break;
         if ((e->modifiers()
@@ -2533,22 +2522,6 @@ void TextEditorWidget::keyPressEvent(QKeyEvent *e)
                 break;
             case Qt::Key_Right:
                 ++d->m_blockSelection.positionColumn;
-                break;
-            case Qt::Key_PageUp:
-                d->m_blockSelection.positionBlock -= verticalScrollBar()->pageStep();
-                if (d->m_blockSelection.positionBlock < 0)
-                    d->m_blockSelection.positionBlock = 0;
-                break;
-            case Qt::Key_PageDown:
-                d->m_blockSelection.positionBlock += verticalScrollBar()->pageStep();
-                if (d->m_blockSelection.positionBlock > document()->blockCount() - 1)
-                    d->m_blockSelection.positionBlock = document()->blockCount() - 1;
-                break;
-            case Qt::Key_Home:
-                d->m_blockSelection.positionBlock = 0;
-                break;
-            case Qt::Key_End:
-                d->m_blockSelection.positionBlock = document()->blockCount() - 1;
                 break;
             default:
                 break;
@@ -3214,7 +3187,7 @@ void TextEditorWidgetPrivate::rememberCurrentSyntaxDefinition()
         return;
     const Highlighter::Definition &definition = highlighter->definition();
     if (definition.isValid())
-        Highlighter::rememberDefinitionForDocument(definition, m_document.data());
+        Highlighter::rememberDefintionForDocument(definition, m_document.data());
 }
 
 bool TextEditorWidget::codeFoldingVisible() const

@@ -52,11 +52,9 @@ public:
     Id id() const override;
 
     void setDefaultKeySequence(const QKeySequence &key) override;
-    void setDefaultKeySequences(const QList<QKeySequence> &key) override;
-    QList<QKeySequence> defaultKeySequences() const override;
+    QKeySequence defaultKeySequence() const override;
 
-    void setKeySequences(const QList<QKeySequence> &keys) override;
-    QList<QKeySequence> keySequences() const override;
+    void setKeySequence(const QKeySequence &key) override;
     QKeySequence keySequence() const override;
 
     void setDescription(const QString &text) override;
@@ -94,7 +92,7 @@ private:
     Context m_context;
     CommandAttributes m_attributes;
     Id m_id;
-    QList<QKeySequence> m_defaultKeys;
+    QKeySequence m_defaultKey;
     QString m_defaultText;
     QString m_touchBarText;
     QIcon m_touchBarIcon;

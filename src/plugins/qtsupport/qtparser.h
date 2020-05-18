@@ -34,18 +34,17 @@ namespace QtSupport {
 
 // Parser for Qt-specific utilities like moc, uic, etc.
 
-class QTSUPPORT_EXPORT QtParser : public ProjectExplorer::OutputTaskParser
+class QTSUPPORT_EXPORT QtParser : public ProjectExplorer::IOutputParser
 {
     Q_OBJECT
 
 public:
     QtParser();
+    void stdError(const QString &line) override;
 
 private:
-    Result handleLine(const QString &line, Utils::OutputFormat type) override;
-
     QRegExp m_mocRegExp;
     QRegExp m_translationRegExp;
 };
 
-} // namespace QtSupport
+} // namespace ProjectExplorer

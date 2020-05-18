@@ -40,24 +40,6 @@ using namespace Utils;
 
 namespace Nim {
 
-class NimCompilerCleanStep final : public BuildStep
-{
-    Q_DECLARE_TR_FUNCTIONS(Nim::NimCompilerCleanStep)
-
-public:
-    NimCompilerCleanStep(BuildStepList *parentList, Core::Id id);
-
-private:
-    bool init() final;
-    void doRun() final;
-    void doCancel() final {}  // Can be left empty. The run() function hardly does anything.
-
-    bool removeCacheDirectory();
-    bool removeOutFilePath();
-
-    Utils::FilePath m_buildDir;
-};
-
 NimCompilerCleanStep::NimCompilerCleanStep(BuildStepList *parentList, Core::Id id)
     : BuildStep(parentList, id)
 {
@@ -69,14 +51,14 @@ NimCompilerCleanStep::NimCompilerCleanStep(BuildStepList *parentList, Core::Id i
     workingDirectory->setDisplayStyle(BaseStringAspect::LineEditDisplay);
 
     setSummaryUpdater([this, workingDirectory] {
-        workingDirectory->setFilePath(buildDirectory());
+        workingDirectory->setFilePath(buildConfiguration()->buildDirectory());
         return displayName();
     });
 }
 
 bool NimCompilerCleanStep::init()
 {
-    FilePath buildDir = buildDirectory();
+    FilePath buildDir = buildConfiguration()->buildDirectory();
     bool result = buildDir.exists();
     if (result)
         m_buildDir = buildDir;
@@ -86,25 +68,30 @@ bool NimCompilerCleanStep::init()
 void NimCompilerCleanStep::doRun()
 {
     if (!m_buildDir.exists()) {
-        emit addOutput(tr("Build directory \"%1\" does not exist.").arg(m_buildDir.toUserOutput()), OutputFormat::ErrorMessage);
+        emit addOutput(tr("Build directory \"%1\" does not exist.").arg(m_buildDir.toUserOutput()), BuildStep::OutputFormat::ErrorMessage);
         emit finished(false);
         return;
     }
 
     if (!removeCacheDirectory()) {
-        emit addOutput(tr("Failed to delete the cache directory."), OutputFormat::ErrorMessage);
+        emit addOutput(tr("Failed to delete the cache directory."), BuildStep::OutputFormat::ErrorMessage);
         emit finished(false);
         return;
     }
 
     if (!removeOutFilePath()) {
-        emit addOutput(tr("Failed to delete the out file."), OutputFormat::ErrorMessage);
+        emit addOutput(tr("Failed to delete the out file."), BuildStep::OutputFormat::ErrorMessage);
         emit finished(false);
         return;
     }
 
-    emit addOutput(tr("Clean step completed successfully."), OutputFormat::NormalMessage);
+    emit addOutput(tr("Clean step completed successfully."), BuildStep::OutputFormat::NormalMessage);
     emit finished(true);
+}
+
+void NimCompilerCleanStep::doCancel()
+{
+    // Can be left empty. The run() function hardly does anything.
 }
 
 bool NimCompilerCleanStep::removeCacheDirectory()

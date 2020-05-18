@@ -341,12 +341,7 @@ class Dumper(DumperBase):
             #DumperBase.warn('ARRAY')
             nativeTargetType = nativeType.target().unqualified()
             targetType = self.fromNativeType(nativeTargetType)
-            if nativeType.sizeof == 0:
-                # QTCREATORBUG-23998, note that nativeType.name == None here,
-                # whereas str(nativeType) returns sth like 'QObject [5]'
-                count = self.arrayItemCountFromTypeName(str(nativeType), 1)
-            else:
-                count = nativeType.sizeof // nativeTargetType.sizeof
+            count = nativeType.sizeof // nativeTargetType.sizeof
             return self.createArrayType(targetType, count)
 
         if code == gdb.TYPE_CODE_TYPEDEF:

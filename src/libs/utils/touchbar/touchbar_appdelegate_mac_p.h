@@ -37,7 +37,6 @@
 - (void)setApplicationTouchBar:(Utils::Internal::TouchBarPrivate *)bar;
 - (void)pushTouchBar:(Utils::Internal::TouchBarPrivate *)bar;
 - (void)popTouchBar;
-- (void)applicationWillFinishLaunching:(NSNotification*)notify;
 
 @end
 

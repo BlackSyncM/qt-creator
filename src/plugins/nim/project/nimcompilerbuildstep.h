@@ -41,7 +41,7 @@ public:
 
     NimCompilerBuildStep(ProjectExplorer::BuildStepList *parentList, Core::Id id);
 
-    void setupOutputFormatter(Utils::OutputFormatter *formatter) override;
+    bool init() override;
     ProjectExplorer::BuildStepConfigWidget *createConfigWidget() override;
 
     bool fromMap(const QVariantMap &map) override;

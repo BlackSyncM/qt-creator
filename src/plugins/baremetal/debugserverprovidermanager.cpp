@@ -35,7 +35,6 @@
 // UVSC debug servers.
 #include "debugservers/uvsc/simulatoruvscserverprovider.h"
 #include "debugservers/uvsc/stlinkuvscserverprovider.h"
-#include "debugservers/uvsc/jlinkuvscserverprovider.h"
 
 #include <coreplugin/icore.h>
 
@@ -66,8 +65,7 @@ DebugServerProviderManager::DebugServerProviderManager()
                    new StLinkUtilGdbServerProviderFactory,
                    new EBlinkGdbServerProviderFactory,
                    new SimulatorUvscServerProviderFactory,
-                   new StLinkUvscServerProviderFactory,
-                   new JLinkUvscServerProviderFactory})
+                   new StLinkUvscServerProviderFactory})
 {
     m_instance = this;
     m_writer = new Utils::PersistentSettingsWriter(

@@ -262,18 +262,19 @@ bool CategoryFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &sou
     if (QSortFilterProxyModel::filterAcceptsRow(sourceRow, sourceParent))
         return true;
 
-    const QRegularExpression regex = filterRegularExpression();
+    const QString pattern = filterRegExp().pattern();
     const CategoryModel *cm = static_cast<CategoryModel*>(sourceModel());
     const Category *category = cm->categories().at(sourceRow);
     for (const IOptionsPage *page : category->pages) {
-        if (page->displayCategory().contains(regex) || page->displayName().contains(regex)
-            || page->matches(regex))
+        if (page->displayCategory().contains(pattern, Qt::CaseInsensitive)
+                || page->displayName().contains(pattern, Qt::CaseInsensitive)
+                || page->matches(pattern))
             return true;
     }
 
     if (!category->providerPagesCreated) {
         for (const IOptionsPageProvider *provider : category->providers) {
-            if (provider->matches(regex))
+            if (provider->matches(pattern))
                 return true;
         }
     }
@@ -468,14 +469,8 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
 
     // The order of the slot connection matters here, the filter slot
     // opens the matching page after the model has filtered.
-    connect(m_filterLineEdit,
-            &Utils::FancyLineEdit::filterChanged,
-            &m_proxyModel,
-            [this](const QString &filter) {
-                m_proxyModel.setFilterRegularExpression(
-                    QRegularExpression(QRegularExpression::escape(filter),
-                                       QRegularExpression::CaseInsensitiveOption));
-            });
+    connect(m_filterLineEdit, &Utils::FancyLineEdit::filterChanged,
+            &m_proxyModel, &QSortFilterProxyModel::setFilterFixedString);
     connect(m_filterLineEdit, &Utils::FancyLineEdit::filterChanged,
             this, &SettingsDialog::filter);
     m_categoryList->setFocus();
@@ -636,12 +631,12 @@ void SettingsDialog::disconnectTabWidgets()
 void SettingsDialog::updateEnabledTabs(Category *category, const QString &searchText)
 {
     int firstEnabledTab = -1;
-    const QRegularExpression regex(QRegularExpression::escape(searchText),
-                                   QRegularExpression::CaseInsensitiveOption);
     for (int i = 0; i < category->pages.size(); ++i) {
         const IOptionsPage *page = category->pages.at(i);
-        const bool enabled = searchText.isEmpty() || page->category().toString().contains(regex)
-                             || page->displayName().contains(regex) || page->matches(regex);
+        const bool enabled = searchText.isEmpty()
+                             || page->category().toString().contains(searchText, Qt::CaseInsensitive)
+                             || page->displayName().contains(searchText, Qt::CaseInsensitive)
+                             || page->matches(searchText);
         category->tabWidget->setTabEnabled(i, enabled);
         if (enabled && firstEnabledTab < 0)
             firstEnabledTab = i;

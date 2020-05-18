@@ -25,6 +25,12 @@
 
 #include "cmakeindenter.h"
 
+#include <QStack>
+#include <QDebug>
+
+#include <texteditor/tabsettings.h>
+#include <texteditor/textdocumentlayout.h>
+
 namespace CMakeProjectManager {
 namespace Internal {
 

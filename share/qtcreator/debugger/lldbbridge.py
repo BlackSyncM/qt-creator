@@ -40,11 +40,6 @@ sys.path.insert(1, os.path.dirname(os.path.abspath(inspect.getfile(inspect.curre
 
 # Simplify development of this module by reloading deps
 if 'dumper' in sys.modules:
-    if sys.version_info[0] >= 3:
-        if sys.version_info[1] > 3:
-            from importlib import reload
-        else:
-            reload = lambda x: print('Unsupported Python version - not reloading %s' % str(x))
     reload(sys.modules['dumper'])
 
 from dumper import DumperBase, SubItem, Children, TopLevelItem
@@ -113,6 +108,7 @@ class Dumper(DumperBase):
         self.process = None
         self.target = None
         self.eventState = lldb.eStateInvalid
+        self.runEngineAttempted = False
 
         self.executable_ = None
         self.symbolFile_ = None
@@ -128,6 +124,7 @@ class Dumper(DumperBase):
         self.interpreterBreakpointResolvers = []
 
         self.report('lldbversion=\"%s\"' % lldb.SBDebugger.GetVersionString())
+        self.reportState('enginesetupok')
 
     def fromNativeFrameValue(self, nativeValue):
         return self.fromNativeValue(nativeValue)
@@ -846,8 +843,6 @@ class Dumper(DumperBase):
         return None
 
     def setupInferior(self, args):
-        """ Set up SBTarget instance """
-
         error = lldb.SBError()
 
         self.executable_ = args['executable']
@@ -885,12 +880,6 @@ class Dumper(DumperBase):
         if self.sysRoot_:
             self.debugger.SetCurrentPlatformSDKRoot(self.sysRoot_)
 
-        # There seems to be some kind of unexpected behavior, or bug in LLDB
-        # such that target.Attach(attachInfo, error) below does not create
-        # a valid process if this symbolFile here is valid.
-        if self.startMode_ == DebuggerStartMode.AttachExternal:
-            self.symbolFile_ = ''
-
         self.target = self.debugger.CreateTarget(
             self.symbolFile_, None, self.platform_, True, error)
 
@@ -898,6 +887,19 @@ class Dumper(DumperBase):
             self.report(self.describeError(error))
             self.reportState('enginerunfailed')
             return
+
+        if (self.startMode_ == DebuggerStartMode.AttachToRemoteServer
+              or self.startMode_ == DebuggerStartMode.AttachToRemoteProcess):
+
+
+            remote_channel = 'connect://' + self.remoteChannel_
+            connect_options = lldb.SBPlatformConnectOptions(remote_channel)
+
+            res = self.target.GetPlatform().ConnectRemote(connect_options)
+            DumperBase.warn("CONNECT: %s %s %s" % (res,
+                        self.target.GetPlatform().GetName(),
+                        self.target.GetPlatform().IsConnected()))
+
 
         broadcaster = self.target.GetBroadcaster()
         listener = self.debugger.GetListener()
@@ -916,43 +918,32 @@ class Dumper(DumperBase):
                           % (state, error, self.executable_), args)
 
     def runEngine(self, args):
-        """ Set up SBProcess instance """
+        if self.runEngineAttempted:
+            return
+        self.runEngineAttempted = True
+        self.prepare(args)
+        s = threading.Thread(target=self.loop, args=[])
+        s.start()
 
+    def prepare(self, args):
         error = lldb.SBError()
 
-        if self.startMode_ == DebuggerStartMode.AttachExternal:
-            attach_info = lldb.SBAttachInfo(self.attachPid_)
-            self.process = self.target.Attach(attach_info, error)
+        if self.attachPid_ > 0:
+            attachInfo = lldb.SBAttachInfo(self.attachPid_)
+            self.process = self.target.Attach(attachInfo, error)
             if not error.Success():
-                self.reportState('enginerunfailed')
-            else:
-                self.report('pid="%s"' % self.process.GetProcessID())
-                self.reportState('enginerunandinferiorstopok')
-
-        elif (self.startMode_ == DebuggerStartMode.AttachToRemoteServer
-                    and self.platform_ == 'remote-android'):
-
-            connect_options = lldb.SBPlatformConnectOptions(self.remoteChannel_)
-            res = self.target.GetPlatform().ConnectRemote(connect_options)
-
-            DumperBase.warn("CONNECT: %s %s platform: %s %s" % (res,
-                        self.remoteChannel_,
-                        self.target.GetPlatform().GetName(),
-                        self.target.GetPlatform().IsConnected()))
-            if not res.Success():
-                self.report(self.describeError(error))
-                self.reportState('enginerunfailed')
+                self.reportState('inferiorrunfailed')
                 return
-
-            attach_info = lldb.SBAttachInfo(self.attachPid_)
-            self.process = self.target.Attach(attach_info, error)
-            if not error.Success():
-                self.report(self.describeError(error))
-                self.reportState('enginerunfailed')
-            else:
-                self.report('pid="%s"' % self.process.GetProcessID())
+            self.report('pid="%s"' % self.process.GetProcessID())
+            # Even if it stops it seems that LLDB assumes it is running
+            # and later detects that it did stop after all, so it is be
+            # better to mirror that and wait for the spontaneous stop
+            if self.process and self.process.GetState() == lldb.eStateStopped:
+                # lldb stops the process after attaching. This happens before the
+                # eventloop starts. Relay the correct state back.
                 self.reportState('enginerunandinferiorstopok')
-
+            else:
+                self.reportState('enginerunandinferiorrunok')
         elif (self.startMode_ == DebuggerStartMode.AttachToRemoteServer
               or self.startMode_ == DebuggerStartMode.AttachToRemoteProcess):
 
@@ -962,9 +953,6 @@ class Dumper(DumperBase):
             launchInfo = lldb.SBLaunchInfo(self.processArgs_)
             #launchInfo.SetWorkingDirectory(self.workingDirectory_)
             launchInfo.SetWorkingDirectory('/tmp')
-            if self.platform_ == 'remote-android':
-                launchInfo.SetWorkingDirectory('/data/local/tmp')
-            launchInfo.SetEnvironmentEntries(self.environment_, False)
             launchInfo.SetExecutableFile(f, True)
 
             DumperBase.warn("TARGET: %s" % self.target)
@@ -1001,9 +989,6 @@ class Dumper(DumperBase):
                 return
             self.report('pid="%s"' % self.process.GetProcessID())
             self.reportState('enginerunandinferiorrunok')
-
-        s = threading.Thread(target=self.loop, args=[])
-        s.start()
 
     def loop(self):
         event = lldb.SBEvent()
@@ -1272,28 +1257,22 @@ class Dumper(DumperBase):
         self.put('],partial="%d"' % isPartial)
         self.reportResult(self.output, args)
 
-
     def fetchRegisters(self, args=None):
-        if not self.process:
-            self.reportResult('process="none",registers=[]', args)
-            return
-
-        frame = self.currentFrame()
-        if not frame or not frame.IsValid():
-            self.reportResult('frame="none",registers=[]', args)
-            return
-
-        result = 'registers=['
-        for group in frame.GetRegisters():
-            for reg in group:
-                value = ''.join(["%02x" % x for x in reg.GetData().uint8s])
-                result += '{name="%s"' % reg.GetName()
-                result += ',value="0x%s"' % value
-                result += ',size="%s"' % reg.GetByteSize()
-                result += ',type="%s"},' % reg.GetType()
-        result += ']'
+        if self.process is None:
+            result = 'process="none"'
+        else:
+            frame = self.currentFrame()
+            if frame:
+                result = 'registers=['
+                for group in frame.GetRegisters():
+                    for reg in group:
+                        value = ''.join(["%02x" % x for x in reg.GetData().uint8s])
+                        result += '{name="%s"' % reg.GetName()
+                        result += ',value="0x%s"' % value
+                        result += ',size="%s"' % reg.GetByteSize()
+                        result += ',type="%s"},' % reg.GetType()
+                result += ']'
         self.reportResult(result, args)
-
 
     def setRegister(self, args):
         name = args["name"]
@@ -1719,8 +1698,7 @@ class Dumper(DumperBase):
 
     def activateFrame(self, args):
         self.reportToken(args)
-        frame = max(0, int(args['index'])) # Can be -1 in all-asm stacks
-        self.currentThread().SetSelectedFrame(frame)
+        self.currentThread().SetSelectedFrame(args['index'])
         self.reportResult('', args)
 
     def selectThread(self, args):
@@ -1743,9 +1721,6 @@ class Dumper(DumperBase):
         output = result.GetOutput()
         error = str(result.GetError())
         self.report('success="%d",output="%s",error="%s"' % (success, output, error))
-
-    def executeRoundtrip(self, args):
-        self.reportResult('', args)
 
     def fetchDisassembler(self, args):
         functionName = args.get('function', '')

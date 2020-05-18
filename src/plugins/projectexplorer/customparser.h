@@ -26,18 +26,12 @@
 #pragma once
 
 #include "ioutputparser.h"
-#include "projectconfiguration.h"
 
 #include <projectexplorer/task.h>
-#include <utils/detailswidget.h>
 
 #include <QRegularExpression>
-#include <QVariantMap>
 
 namespace ProjectExplorer {
-class Target;
-
-namespace Internal {
 
 class CustomParserExpression
 {
@@ -68,9 +62,6 @@ public:
     int messageCap() const;
     void setMessageCap(int messageCap);
 
-    QVariantMap toMap() const;
-    void fromMap(const QVariantMap &map);
-
 private:
     QRegularExpression m_regExp;
     CustomParserExpression::CustomParserChannel m_channel = ParseBothChannels;
@@ -86,69 +77,36 @@ public:
     bool operator ==(const CustomParserSettings &other) const;
     bool operator !=(const CustomParserSettings &other) const { return !operator==(other); }
 
-    QVariantMap toMap() const;
-    void fromMap(const QVariantMap &map);
-
-    Core::Id id;
-    QString displayName;
     CustomParserExpression error;
     CustomParserExpression warning;
 };
 
-class CustomParser : public ProjectExplorer::OutputTaskParser
+class CustomParser : public ProjectExplorer::IOutputParser
 {
 public:
     CustomParser(const CustomParserSettings &settings = CustomParserSettings());
 
+    void stdError(const QString &line) override;
+    void stdOutput(const QString &line) override;
+
+    void setWorkingDirectory(const QString &workingDirectory) override;
+
     void setSettings(const CustomParserSettings &settings);
 
-    static CustomParser *createFromId(Core::Id id);
     static Core::Id id();
 
 private:
-    Result handleLine(const QString &line, Utils::OutputFormat type) override;
-
-    Result hasMatch(const QString &line, CustomParserExpression::CustomParserChannel channel,
-                    const CustomParserExpression &expression, Task::TaskType taskType);
-    Result parseLine(const QString &rawLine, CustomParserExpression::CustomParserChannel channel);
+    Utils::FilePath absoluteFilePath(const QString &filePath) const;
+    bool hasMatch(const QString &line, CustomParserExpression::CustomParserChannel channel,
+                  const CustomParserExpression &expression, Task::TaskType taskType);
+    bool parseLine(const QString &rawLine, CustomParserExpression::CustomParserChannel channel);
 
     CustomParserExpression m_error;
     CustomParserExpression m_warning;
+
+    QString m_workingDirectory;
 };
 
-class CustomParsersSelectionWidget : public Utils::DetailsWidget
-{
-    Q_OBJECT
-public:
-    CustomParsersSelectionWidget(QWidget *parent = nullptr);
-
-    void setSelectedParsers(const QList<Core::Id> &parsers);
-    QList<Core::Id> selectedParsers() const;
-
-signals:
-    void selectionChanged();
-
-private:
-    void updateSummary();
-};
-
-class CustomParsersAspect : public ProjectConfigurationAspect
-{
-    Q_OBJECT
-public:
-    CustomParsersAspect(Target *target);
-
-    void setParsers(const QList<Core::Id> &parsers) { m_parsers = parsers; }
-    const QList<Core::Id> parsers() const { return m_parsers; }
-
-private:
-    void fromMap(const QVariantMap &map) override;
-    void toMap(QVariantMap &map) const override;
-
-    QList<Core::Id> m_parsers;
-};
-
-} // namespace Internal
 } // namespace ProjectExplorer
 
-Q_DECLARE_METATYPE(ProjectExplorer::Internal::CustomParserExpression::CustomParserChannel);
+Q_DECLARE_METATYPE(ProjectExplorer::CustomParserExpression::CustomParserChannel);

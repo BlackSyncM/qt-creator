@@ -66,17 +66,6 @@ constexpr int defaultPortNumber = 5101;
 
 // UvscServerProvider
 
-QString UvscServerProvider::buildDllRegistryKey(const DriverSelection &driver)
-{
-    const QFileInfo fi(driver.dll);
-    return fi.baseName();
-}
-
-QString UvscServerProvider::adjustFlashAlgorithmProperty(const QString &property)
-{
-    return property.startsWith("0x") ? property.mid(2) : property;
-}
-
 UvscServerProvider::UvscServerProvider(const QString &id)
     : IDebugServerProvider(id)
 {
@@ -212,12 +201,8 @@ bool UvscServerProvider::aboutToRun(DebuggerRunTool *runTool, QString &errorMess
     if (!optFilePath.exists())
         return false;
 
-    const FilePath peripheralDescriptionFile = FilePath::fromString(m_deviceSelection.svd);
-
     Runnable inferior;
     inferior.executable = bin;
-    inferior.extraData.insert(Debugger::Constants::kPeripheralDescriptionFile,
-                              peripheralDescriptionFile.toVariant());
     inferior.extraData.insert(Debugger::Constants::kUVisionProjectFilePath, projFilePath.toString());
     inferior.extraData.insert(Debugger::Constants::kUVisionOptionsFilePath, optFilePath.toString());
     inferior.extraData.insert(Debugger::Constants::kUVisionSimulator, isSimulator());
@@ -309,7 +294,7 @@ UvscServerProviderConfigWidget::UvscServerProviderConfigWidget(UvscServerProvide
             this, &UvscServerProviderConfigWidget::dirty);
 
     auto updateSelectors = [this]() {
-        const FilePath toolsIniFile = m_toolsIniChooser->filePath();
+        const FilePath toolsIniFile = m_toolsIniChooser->fileName();
         m_deviceSelector->setToolsIniFile(toolsIniFile);
         m_driverSelector->setToolsIniFile(toolsIniFile);
     };
@@ -335,12 +320,12 @@ void UvscServerProviderConfigWidget::discard()
 
 void UvscServerProviderConfigWidget::setToolsIniFile(const Utils::FilePath &toolsIniFile)
 {
-    m_toolsIniChooser->setFilePath(toolsIniFile);
+    m_toolsIniChooser->setFileName(toolsIniFile);
 }
 
 Utils::FilePath UvscServerProviderConfigWidget::toolsIniFile() const
 {
-    return m_toolsIniChooser->filePath();
+    return m_toolsIniChooser->fileName();
 }
 
 void UvscServerProviderConfigWidget::setDeviceSelection(const DeviceSelection &deviceSelection)
@@ -367,7 +352,7 @@ void UvscServerProviderConfigWidget::setFromProvider()
 {
     const auto p = static_cast<UvscServerProvider *>(m_provider);
     m_hostWidget->setChannel(p->channel());
-    m_toolsIniChooser->setFilePath(p->toolsIniFile());
+    m_toolsIniChooser->setFileName(p->toolsIniFile());
     m_deviceSelector->setSelection(p->deviceSelection());
     m_driverSelector->setSelection(p->driverSelection());
 }

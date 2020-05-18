@@ -36,6 +36,8 @@ class NimToolChain;
 
 class NimToolChainFactory : public ProjectExplorer::ToolChainFactory
 {
+    Q_OBJECT
+
 public:
     NimToolChainFactory();
 

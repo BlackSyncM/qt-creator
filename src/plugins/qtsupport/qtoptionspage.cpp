@@ -823,41 +823,28 @@ static QString linkingPurposeText()
         "Linking with a Qt installation automatically registers Qt versions and kits.");
 }
 
-static bool canLinkWithQt(QString *toolTip)
+void QtOptionsPageWidget::setupLinkWithQtButton()
 {
-    bool canLink = true;
     bool installSettingsExist;
     const Utils::optional<QString> installSettingsValue = currentlyLinkedQtDir(
         &installSettingsExist);
     QStringList tip;
     tip << linkingPurposeText();
     if (!FilePath::fromString(Core::ICore::resourcePath()).isWritablePath()) {
-        canLink = false;
-        tip << QtOptionsPageWidget::tr("%1's resource directory is not writable.")
-                   .arg(Core::Constants::IDE_DISPLAY_NAME);
+        m_ui.linkWithQtButton->setEnabled(false);
+        tip << tr("%1's resource directory is not writable.").arg(Core::Constants::IDE_DISPLAY_NAME);
     }
     // guard against redirecting Qt Creator that is part of a Qt installations
     // TODO this fails for pre-releases in the online installer
     // TODO this will fail when make Qt Creator non-required in the Qt installers
     if (installSettingsExist && !installSettingsValue) {
-        canLink = false;
-        tip << QtOptionsPageWidget::tr("%1 is part of a Qt installation.")
-                   .arg(Core::Constants::IDE_DISPLAY_NAME);
+        m_ui.linkWithQtButton->setEnabled(false);
+        tip << tr("%1 is part of a Qt installation.").arg(Core::Constants::IDE_DISPLAY_NAME);
     }
     const QString link = installSettingsValue ? *installSettingsValue : QString();
     if (!link.isEmpty())
-        tip << QtOptionsPageWidget::tr("%1 is currently linked to \"%2\".")
-                   .arg(Core::Constants::IDE_DISPLAY_NAME, link);
-    if (toolTip)
-        *toolTip = tip.join("\n\n");
-    return canLink;
-}
-
-void QtOptionsPageWidget::setupLinkWithQtButton()
-{
-    QString tip;
-    canLinkWithQt(&tip);
-    m_ui.linkWithQtButton->setToolTip(tip);
+        tip << tr("%1 is currently linked to \"%2\".").arg(Core::Constants::IDE_DISPLAY_NAME, link);
+    m_ui.linkWithQtButton->setToolTip(tip.join("\n\n"));
     connect(m_ui.linkWithQtButton, &QPushButton::clicked, this, &QtOptionsPage::linkWithQt);
 }
 
@@ -934,10 +921,10 @@ static bool validateQtInstallDir(FancyLineEdit *input, QString *errorString)
     if (!settingsDirForQtDir(qtDir)) {
         if (errorString) {
             const QStringList filesToCheck = settingsFilesToCheck() + qtversionFilesToCheck();
-            *errorString = "<html><body>" + QtOptionsPageWidget::tr(
-                               "Qt installation information was not found in \"%1\". "
-                               "Choose a directory that contains one of the files %2")
-                               .arg(qtDir, "<pre>" + filesToCheck.join('\n') + "</pre>");
+            *errorString = QtOptionsPageWidget::tr(
+                               "<html><body>Qt installation information was not found in \"%1\". "
+                               "Choose a directory that contains one of the files <pre>%2</pre>")
+                               .arg(qtDir, filesToCheck.join('\n'));
         }
         return false;
     }
@@ -1029,16 +1016,6 @@ QtOptionsPage::QtOptionsPage()
     setDisplayName(QCoreApplication::translate("QtSupport", "Qt Versions"));
     setCategory(ProjectExplorer::Constants::KITS_SETTINGS_CATEGORY);
     setWidgetCreator([] { return new QtOptionsPageWidget; });
-}
-
-bool QtOptionsPage::canLinkWithQt()
-{
-    return Internal::canLinkWithQt(nullptr);
-}
-
-bool QtOptionsPage::isLinkedWithQt()
-{
-    return currentlyLinkedQtDir(nullptr).has_value();
 }
 
 void QtOptionsPage::linkWithQt()

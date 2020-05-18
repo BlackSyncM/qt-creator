@@ -665,7 +665,7 @@ void BreakpointDialog::getParts(unsigned partsMask, BreakpointParameters *data) 
     if (partsMask & FileAndLinePart) {
         data->lineNumber = m_lineEditLineNumber->text().toInt();
         data->pathUsage = static_cast<BreakpointPathUsage>(m_comboBoxPathUsage->currentIndex());
-        data->fileName = m_pathChooserFileName->filePath();
+        data->fileName = FilePath::fromUserInput(m_pathChooserFileName->path());
     }
     if (partsMask & FunctionPart)
         data->functionName = m_lineEditFunction->text();
@@ -702,7 +702,7 @@ void BreakpointDialog::setParts(unsigned mask, const BreakpointParameters &data)
     m_lineEditMessage->setText(data.message);
 
     if (mask & FileAndLinePart) {
-        m_pathChooserFileName->setFilePath(data.fileName);
+        m_pathChooserFileName->setFileName(data.fileName);
         m_lineEditLineNumber->setText(QString::number(data.lineNumber));
     }
 
@@ -1174,19 +1174,19 @@ void BreakHandler::removeAlienBreakpoint(const QString &rid)
 void BreakHandler::requestBreakpointInsertion(const Breakpoint &bp)
 {
     bp->gotoState(BreakpointInsertionRequested, BreakpointNew);
-    m_engine->insertBreakpoint(bp);
+    QTimer::singleShot(0, m_engine, [this, bp] { m_engine->insertBreakpoint(bp); });
 }
 
 void BreakHandler::requestBreakpointUpdate(const Breakpoint &bp)
 {
     bp->gotoState(BreakpointUpdateRequested, BreakpointInserted);
-    m_engine->updateBreakpoint(bp);
+    QTimer::singleShot(0, m_engine, [this, bp] { m_engine->updateBreakpoint(bp); });
 }
 
 void BreakHandler::requestBreakpointRemoval(const Breakpoint &bp)
 {
     bp->gotoState(BreakpointRemoveRequested, BreakpointInserted);
-    m_engine->removeBreakpoint(bp);
+    QTimer::singleShot(0, m_engine, [this, bp] { m_engine->removeBreakpoint(bp); });
 }
 
 void BreakHandler::requestBreakpointEnabling(const Breakpoint &bp, bool enabled)
@@ -1330,12 +1330,7 @@ void DebuggerEngine::notifyBreakpointInsertOk(const Breakpoint &bp)
 void DebuggerEngine::notifyBreakpointInsertFailed(const Breakpoint &bp)
 {
     QTC_ASSERT(bp, return);
-    GlobalBreakpoint gbp = bp->globalBreakpoint();
     bp->gotoState(BreakpointDead, BreakpointInsertionProceeding);
-    breakHandler()->removeDisassemblerMarker(bp);
-    breakHandler()->destroyItem(bp);
-    QTC_ASSERT(gbp, return);
-    gbp->updateMarker();
 }
 
 void DebuggerEngine::notifyBreakpointRemoveProceeding(const Breakpoint &bp)
@@ -1514,7 +1509,7 @@ bool BreakHandler::setData(const QModelIndex &idx, const QVariant &value, int ro
             return contextMenuEvent(ev);
 
         if (auto kev = ev.as<QKeyEvent>(QEvent::KeyPress)) {
-            if (kev->key() == Qt::Key_Delete || kev->key() == Qt::Key_Backspace) {
+            if (kev->key() == Qt::Key_Delete) {
                 QModelIndexList si = ev.currentOrSelectedRows();
                 const Breakpoints bps = findBreakpointsByIndex(si);
                 for (Breakpoint bp : bps) {
@@ -2495,7 +2490,7 @@ GlobalBreakpoint BreakpointManager::findBreakpointFromContext(const ContextData 
                 matchLevel = 2;
                 bestMatch = gbp;
             } else if (matchLevel < 2) {
-                for (const QPointer<DebuggerEngine> &engine : EngineManager::engines()) {
+                for (const QPointer<DebuggerEngine> engine : EngineManager::engines()) {
                     BreakHandler *handler = engine->breakHandler();
                     for (Breakpoint bp : handler->breakpoints()) {
                         if (bp->globalBreakpoint() == gbp) {
@@ -2552,7 +2547,7 @@ bool BreakpointManager::setData(const QModelIndex &idx, const QVariant &value, i
             return contextMenuEvent(ev);
 
         if (auto kev = ev.as<QKeyEvent>(QEvent::KeyPress)) {
-            if (kev->key() == Qt::Key_Delete || kev->key() == Qt::Key_Backspace) {
+            if (kev->key() == Qt::Key_Delete) {
                 QModelIndexList si = ev.currentOrSelectedRows();
                 const GlobalBreakpoints gbps = findBreakpointsByIndex(si);
                 for (GlobalBreakpoint gbp : gbps)

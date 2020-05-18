@@ -70,13 +70,9 @@ QHelpEngine* LocalHelpManager::m_guiEngine = nullptr;
 QMutex LocalHelpManager::m_bkmarkMutex;
 BookmarkManager* LocalHelpManager::m_bookmarkManager = nullptr;
 
-#ifndef HELP_NEW_FILTER_ENGINE
-
 QStandardItemModel *LocalHelpManager::m_filterModel = nullptr;
 QString LocalHelpManager::m_currentFilter = QString();
 int LocalHelpManager::m_currentFilterIndex = -1;
-
-#endif
 
 static const char kHelpHomePageKey[] = "Help/HomePage";
 static const char kFontFamilyKey[] = "Help/FallbackFontFamily";
@@ -127,9 +123,7 @@ LocalHelpManager::LocalHelpManager(QObject *parent)
 {
     m_instance = this;
     qRegisterMetaType<Help::Internal::LocalHelpManager::HelpData>("Help::Internal::LocalHelpManager::HelpData");
-#ifndef HELP_NEW_FILTER_ENGINE
     m_filterModel = new QStandardItemModel(this);
-#endif
 }
 
 LocalHelpManager::~LocalHelpManager()
@@ -402,12 +396,8 @@ QHelpEngine &LocalHelpManager::helpEngine()
 {
     if (!m_guiEngine) {
         QMutexLocker _(&m_guiMutex);
-        if (!m_guiEngine) {
+        if (!m_guiEngine)
             m_guiEngine = new QHelpEngine(QString());
-#ifdef HELP_NEW_FILTER_ENGINE
-            m_guiEngine->setUsesFilterEngine(true);
-#endif
-        }
     }
     return *m_guiEngine;
 }
@@ -505,8 +495,6 @@ LocalHelpManager::HelpData LocalHelpManager::helpData(const QUrl &url)
     return data;
 }
 
-#ifndef HELP_NEW_FILTER_ENGINE
-
 QAbstractItemModel *LocalHelpManager::filterModel()
 {
     return m_filterModel;
@@ -555,15 +543,6 @@ void LocalHelpManager::updateFilterModel()
     }
     emit m_instance->filterIndexChanged(m_currentFilterIndex);
 }
-
-#else
-
-QHelpFilterEngine *LocalHelpManager::filterEngine()
-{
-    return helpEngine().filterEngine();
-}
-
-#endif
 
 bool LocalHelpManager::canOpenOnlineHelp(const QUrl &url)
 {

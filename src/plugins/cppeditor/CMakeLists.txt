@@ -43,4 +43,5 @@ extend_qtc_plugin(CppEditor
     followsymbol_switchmethoddecldef_test.cpp
   EXPLICIT_MOC
     cppdoxygen_test.h
+    cppquickfix_test.h
 )

@@ -36,6 +36,7 @@ QT_END_NAMESPACE
 
 namespace KSyntaxHighlighting
 {
+
 class Context;
 
 class StateData : public QSharedData
@@ -45,7 +46,7 @@ class StateData : public QSharedData
 
 public:
     StateData() = default;
-    static StateData *get(State &state);
+    static StateData* get(State &state);
 
     bool isEmpty() const;
     void clear();
@@ -60,7 +61,7 @@ public:
      */
     bool pop(int popCount);
 
-    Context *topContext() const;
+    Context* topContext() const;
     const QStringList &topCaptures() const;
 
 private:

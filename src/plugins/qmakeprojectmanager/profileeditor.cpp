@@ -30,6 +30,8 @@
 #include "profilehoverhandler.h"
 #include "qmakenodes.h"
 #include "qmakeproject.h"
+#include "qmakeprojectmanager.h"
+#include "qmakeprojectmanagerconstants.h"
 #include "qmakeprojectmanagerconstants.h"
 
 #include <coreplugin/fileiconprovider.h>

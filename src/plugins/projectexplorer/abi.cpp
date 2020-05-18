@@ -159,8 +159,6 @@ static Abi::Architecture architectureFromQt()
         return Abi::PowerPCArchitecture;
     if (arch.startsWith("sh")) // Not in Qt documentation!
         return Abi::ShArchitecture;
-    if (arch.startsWith("avr32")) // Not in Qt documentation!
-        return Abi::Avr32Architecture;
     if (arch.startsWith("avr")) // Not in Qt documentation!
         return Abi::AvrArchitecture;
     if (arch.startsWith("asmjs"))
@@ -493,12 +491,6 @@ Abi Abi::abiFromTargetTriplet(const QString &triple)
             flavor = GenericFlavor;
             format = ElfFormat;
             width = 16;
-        } else if (p == "avr32") {
-            arch = Avr32Architecture;
-            os = BareMetalOS;
-            flavor = GenericFlavor;
-            format = ElfFormat;
-            width = 32;
         } else if (p == "msp430") {
             arch = Msp430Architecture;
             os = BareMetalOS;
@@ -511,18 +503,6 @@ Abi Abi::abiFromTargetTriplet(const QString &triple)
             flavor = GenericFlavor;
             format = ElfFormat;
             width = 16;
-        } else if (p == "v850") {
-            arch = V850Architecture;
-            os = BareMetalOS;
-            flavor = GenericFlavor;
-            format = ElfFormat;
-            width = 32;
-        } else if (p.startsWith("riscv")) {
-            arch = RiscVArchitecture;
-            os = BareMetalOS;
-            flavor = GenericFlavor;
-            format = ElfFormat;
-            width = 32;
         } else if (p.startsWith("mips")) {
             arch = MipsArchitecture;
             width = p.contains("64") ? 64 : 32;
@@ -719,16 +699,12 @@ QString Abi::toString(const Architecture &a)
         return QLatin1String("arm");
     case AvrArchitecture:
         return QLatin1String("avr");
-    case Avr32Architecture:
-        return QLatin1String("avr32");
     case XtensaArchitecture:
         return QLatin1String("xtensa");
     case X86Architecture:
         return QLatin1String("x86");
     case Mcs51Architecture:
         return QLatin1String("mcs51");
-    case Mcs251Architecture:
-        return QLatin1String("mcs251");
     case MipsArchitecture:
         return QLatin1String("mips");
     case PowerPCArchitecture:
@@ -745,18 +721,6 @@ QString Abi::toString(const Architecture &a)
         return QLatin1String("msp430");
     case Rl78Architecture:
         return QLatin1String("rl78");
-    case C166Architecture:
-        return QLatin1String("c166");
-    case V850Architecture:
-        return QLatin1String("v850");
-    case Rh850Architecture:
-        return QLatin1String("rh850");
-    case RxArchitecture:
-        return QLatin1String("rx");
-    case K78Architecture:
-        return QLatin1String("78k");
-    case RiscVArchitecture:
-        return QLatin1String("riscv");
     case UnknownArchitecture:
         Q_FALLTHROUGH();
     default:
@@ -881,14 +845,10 @@ Abi::Architecture Abi::architectureFromString(const QStringRef &a)
         return ArmArchitecture;
     if (a == "avr")
         return AvrArchitecture;
-    if (a == "avr32")
-        return Avr32Architecture;
     if (a == "x86")
         return X86Architecture;
     if (a == "mcs51")
         return Mcs51Architecture;
-    if (a == "mcs251")
-        return Mcs251Architecture;
     if (a == "mips")
         return MipsArchitecture;
     if (a == "ppc")
@@ -903,18 +863,6 @@ Abi::Architecture Abi::architectureFromString(const QStringRef &a)
         return Msp430Architecture;
     if (a == "rl78")
         return Rl78Architecture;
-    if (a == "c166")
-        return C166Architecture;
-    if (a == "v850")
-        return V850Architecture;
-    if (a == "rh850")
-        return Rh850Architecture;
-    if (a == "rx")
-        return RxArchitecture;
-    if (a == "78k")
-        return K78Architecture;
-    if (a == "riscv")
-        return RiscVArchitecture;
     else if (a == "xtensa")
         return XtensaArchitecture;
     if (a == "asmjs")
@@ -1461,10 +1409,6 @@ void ProjectExplorer::ProjectExplorerPlugin::testAbiFromTargetTriplet_data()
     QTest::newRow("avr") << int(Abi::AvrArchitecture)
                          << int(Abi::BareMetalOS) << int(Abi::GenericFlavor)
                          << int(Abi::ElfFormat) << 16;
-
-    QTest::newRow("avr32") << int(Abi::Avr32Architecture)
-                         << int(Abi::BareMetalOS) << int(Abi::GenericFlavor)
-                         << int(Abi::ElfFormat) << 32;
 
     QTest::newRow("asmjs-unknown-emscripten") << int(Abi::AsmJsArchitecture)
                                               << int(Abi::UnknownOS) << int(Abi::UnknownFlavor)

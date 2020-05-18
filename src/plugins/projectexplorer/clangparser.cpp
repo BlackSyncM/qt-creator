@@ -25,7 +25,6 @@
 
 #include "clangparser.h"
 #include "ldparser.h"
-#include "lldparser.h"
 #include "projectexplorerconstants.h"
 
 using namespace ProjectExplorer;
@@ -55,39 +54,31 @@ ClangParser::ClangParser() :
     setObjectName(QLatin1String("ClangParser"));
 }
 
-QList<OutputLineParser *> ClangParser::clangParserSuite()
+void ClangParser::stdError(const QString &line)
 {
-    return {new ClangParser, new Internal::LldParser, new LdParser};
-}
-
-OutputLineParser::Result ClangParser::handleLine(const QString &line, OutputFormat type)
-{
-    if (type != StdErrFormat)
-        return Status::NotHandled;
     const QString lne = rightTrimmed(line);
     QRegularExpressionMatch match = m_summaryRegExp.match(lne);
     if (match.hasMatch()) {
-        flush();
+        doFlush();
         m_expectSnippet = false;
-        return Status::Done;
+        return;
     }
 
     match = m_commandRegExp.match(lne);
     if (match.hasMatch()) {
         m_expectSnippet = true;
         newTask(CompileTask(taskType(match.captured(3)), match.captured(4)));
-        return Status::InProgress;
+        return;
     }
 
     match = m_inLineRegExp.match(lne);
     if (match.hasMatch()) {
         m_expectSnippet = true;
-        const FilePath filePath = absoluteFilePath(FilePath::fromUserInput(match.captured(2)));
-        const int lineNo = match.captured(3).toInt();
-        LinkSpecs linkSpecs;
-        addLinkSpecForAbsoluteFilePath(linkSpecs, filePath, lineNo, match, 2);
-        newTask(CompileTask(Task::Unknown, lne.trimmed(), filePath, lineNo));
-        return {Status::InProgress, linkSpecs};
+        newTask(CompileTask(Task::Unknown,
+                            lne.trimmed(),
+                            FilePath::fromUserInput(match.captured(2)), /* filename */
+                            match.captured(3).toInt() /* line */));
+        return;
     }
 
     match = m_messageRegExp.match(lne);
@@ -97,26 +88,26 @@ OutputLineParser::Result ClangParser::handleLine(const QString &line, OutputForm
         int lineNo = match.captured(4).toInt(&ok);
         if (!ok)
             lineNo = match.captured(5).toInt(&ok);
-        const FilePath filePath = absoluteFilePath(FilePath::fromUserInput(match.captured(1)));
-        LinkSpecs linkSpecs;
-        addLinkSpecForAbsoluteFilePath(linkSpecs, filePath, lineNo, match, 1);
-        newTask(CompileTask(taskType(match.captured(7)), match.captured(8), filePath, lineNo));
-        return {Status::InProgress, linkSpecs};
+        newTask(CompileTask(taskType(match.captured(7)),
+                            match.captured(8),
+                            FilePath::fromUserInput(match.captured(1)), /* filename */
+                            lineNo));
+        return;
     }
 
     match = m_codesignRegExp.match(lne);
     if (match.hasMatch()) {
         m_expectSnippet = true;
         newTask(CompileTask(Task::Error, match.captured(1)));
-        return Status::InProgress;
+        return;
     }
 
     if (m_expectSnippet) {
-        amendDescription(lne);
-        return Status::InProgress;
+        amendDescription(lne, true);
+        return;
     }
 
-    return Status::NotHandled;
+    IOutputParser::stdError(line);
 }
 
 Core::Id ClangParser::id()
@@ -256,14 +247,15 @@ void ProjectExplorerPlugin::testClangOutputParser_data()
                 << (Tasks()
                     << CompileTask(Task::Unknown,
                                    "Note: No relevant classes found. No output generated.",
-                                   FilePath::fromUserInput("/home/qtwebkithelpviewer.h")))
+                                   FilePath::fromUserInput("/home/qtwebkithelpviewer.h"),
+                                   0))
                 << QString();
 }
 
 void ProjectExplorerPlugin::testClangOutputParser()
 {
     OutputParserTester testbench;
-    testbench.setLineParsers(ClangParser::clangParserSuite());
+    testbench.appendOutputParser(new ClangParser);
     QFETCH(QString, input);
     QFETCH(OutputParserTester::Channel, inputChannel);
     QFETCH(Tasks, tasks);

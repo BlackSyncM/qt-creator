@@ -68,6 +68,7 @@ private:
     QString m_description;
     int m_maxProgress;
     bool m_showCompilerOutput = true;
+    ProjectExplorer::IOutputParser *m_parser = nullptr;
 };
 
 class QbsCleanStepFactory : public ProjectExplorer::BuildStepFactory

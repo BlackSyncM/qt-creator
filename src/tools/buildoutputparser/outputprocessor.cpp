@@ -30,11 +30,10 @@
 #include <projectexplorer/gnumakeparser.h>
 #include <projectexplorer/msvcparser.h>
 #include <projectexplorer/osparser.h>
-#include <projectexplorer/taskhub.h>
 #include <qmakeprojectmanager/qmakeparser.h>
 #include <qtsupport/qtparser.h>
 #include <utils/fileutils.h>
-#include <utils/outputformatter.h>
+
 
 #include <QIODevice>
 #include <QTextStream>
@@ -55,29 +54,26 @@ CompilerOutputProcessor::~CompilerOutputProcessor()
 
 void CompilerOutputProcessor::start()
 {
-    Utils::OutputFormatter parser;
-    parser.addLineParser(new ProjectExplorer::OsParser);
-    parser.addLineParser(new QmakeProjectManager::QMakeParser);
-    parser.addLineParser(new ProjectExplorer::GnuMakeParser);
-    parser.addLineParser(new QtSupport::QtParser);
+    ProjectExplorer::OsParser parser;
+    parser.appendOutputParser(new QmakeProjectManager::QMakeParser);
+    parser.appendOutputParser(new ProjectExplorer::GnuMakeParser);
+    parser.appendOutputParser(new QtSupport::QtParser);
     switch (m_compilerType) {
     case CompilerTypeGcc:
-        parser.addLineParsers(ProjectExplorer::GccParser::gccParserSuite());
+        parser.appendOutputParser(new ProjectExplorer::GccParser);
         break;
     case CompilerTypeClang:
-        parser.addLineParsers(ProjectExplorer::ClangParser::clangParserSuite());
+        parser.appendOutputParser(new ProjectExplorer::ClangParser);
         break;
     case CompilerTypeMsvc:
-        parser.addLineParser(new ProjectExplorer::MsvcParser);
+        parser.appendOutputParser(new ProjectExplorer::MsvcParser);
         break;
     }
 
-    connect(ProjectExplorer::TaskHub::instance(), &ProjectExplorer::TaskHub::taskAdded,
+    connect(&parser, &ProjectExplorer::IOutputParser::addTask,
             this, &CompilerOutputProcessor::handleTask);
-    while (!m_source.atEnd()) {
-        parser.appendMessage(QString::fromLocal8Bit(m_source.readLine().trimmed()),
-                             Utils::StdErrFormat);
-    }
+    while (!m_source.atEnd())
+        parser.stdError(QString::fromLocal8Bit(m_source.readLine().trimmed()));
     QCoreApplication::quit();
 }
 
@@ -90,5 +86,5 @@ void CompilerOutputProcessor::handleTask(const ProjectExplorer::Task &task)
             *m_ostream << ':' << task.line;
         *m_ostream << ": ";
     }
-    *m_ostream << task.description() << '\n';
+    *m_ostream << task.description << '\n';
 }

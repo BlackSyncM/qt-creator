@@ -62,7 +62,8 @@ void ClangToolsUnitTests::initTestCase()
     const QList<Kit *> allKits = KitManager::kits();
     if (allKits.count() != 1)
         QSKIP("This test requires exactly one kit to be present");
-    const ToolChain *const toolchain = ToolChainKitAspect::cxxToolChain(allKits.first());
+    const ToolChain *const toolchain = ToolChainKitAspect::toolChain(allKits.first(),
+                                                                     Constants::CXX_LANGUAGE_ID);
     if (!toolchain)
         QSKIP("This test requires that there is a kit with a toolchain.");
 
@@ -99,7 +100,9 @@ void ClangToolsUnitTests::testProject()
     QFETCH(int, expectedDiagCount);
     QFETCH(ClangDiagnosticConfig, diagnosticConfig);
     if (projectFilePath.contains("mingw")) {
-        const auto toolchain = ToolChainKitAspect::cxxToolChain(KitManager::kits().constFirst());
+        const ToolChain *const toolchain
+            = ToolChainKitAspect::toolChain(KitManager::kits().constFirst(),
+                                            Constants::CXX_LANGUAGE_ID);
         if (toolchain->typeId() != ProjectExplorer::Constants::MINGW_TOOLCHAIN_TYPEID)
             QSKIP("This test is mingw specific, does not run for other toolchains");
     }
@@ -112,7 +115,7 @@ void ClangToolsUnitTests::testProject()
 
     // Run tool
     ClangTool *tool = ClangTool::instance();
-    tool->startTool(ClangTool::FileSelectionType::AllFiles,
+    tool->startTool(ClangTool::FileSelection::AllFiles,
                     ClangToolsSettings::instance()->runSettings(),
                     diagnosticConfig);
     QSignalSpy waitForFinishedTool(tool, &ClangTool::finished);

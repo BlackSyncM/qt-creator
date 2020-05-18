@@ -159,7 +159,8 @@ QString QmakeKitAspect::defaultMkspec(const Kit *k)
     if (!version) // No version, so no qmake
         return {};
 
-    return version->mkspecFor(ToolChainKitAspect::cxxToolChain(k));
+    return version->mkspecFor(ToolChainKitAspect::toolChain(k,
+                        ProjectExplorer::Constants::CXX_LANGUAGE_ID));
 }
 
 } // namespace Internal

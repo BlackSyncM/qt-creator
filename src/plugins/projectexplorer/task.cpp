@@ -62,20 +62,15 @@ unsigned int Task::s_nextId = 1;
     \sa ProjectExplorer::TaskHub
 */
 
-Task::Task(TaskType type_, const QString &description,
+Task::Task(TaskType type_, const QString &description_,
            const Utils::FilePath &file_, int line_, Core::Id category_,
            const QIcon &icon, Options options) :
-    taskId(s_nextId), type(type_), options(options), summary(description),
+    taskId(s_nextId), type(type_), options(options), description(description_),
     line(line_), movedLine(line_), category(category_),
     icon(icon.isNull() ? taskTypeIcon(type_) : icon)
 {
     ++s_nextId;
     setFile(file_);
-    QStringList desc = description.split('\n');
-    if (desc.length() > 1) {
-        summary = desc.first();
-        details = desc.mid(1);
-    }
 }
 
 Task Task::compilerMissingTask()
@@ -83,6 +78,14 @@ Task Task::compilerMissingTask()
     return BuildSystemTask(Task::Error,
                            tr("%1 needs a compiler set up to build. "
                               "Configure a compiler in the kit options.")
+                           .arg(Core::Constants::IDE_DISPLAY_NAME));
+}
+
+Task Task::buildConfigurationMissingTask()
+{
+    return BuildSystemTask(Task::Error,
+                           tr("%1 needs a build configuration set up to build. "
+                              "Configure a build configuration in the project settings.")
                            .arg(Core::Constants::IDE_DISPLAY_NAME));
 }
 
@@ -102,8 +105,7 @@ void Task::clear()
 {
     taskId = 0;
     type = Task::Unknown;
-    summary.clear();
-    details.clear();
+    description.clear();
     file = Utils::FilePath();
     line = -1;
     movedLine = -1;
@@ -123,14 +125,6 @@ void Task::setFile(const Utils::FilePath &file_)
         else
             fileCandidates = possiblePaths;
     }
-}
-
-QString Task::description() const
-{
-    QString desc = summary;
-    if (!details.isEmpty())
-        desc.append('\n').append(details.join('\n'));
-    return desc;
 }
 
 //
@@ -187,7 +181,7 @@ QString toHtml(const Tasks &issues)
         default:
             break;
         }
-        str << "</b>" << t.description() << "<br>";
+        str << "</b>" << t.description << "<br>";
     }
     return result;
 }

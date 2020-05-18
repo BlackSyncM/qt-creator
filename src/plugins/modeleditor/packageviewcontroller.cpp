@@ -104,7 +104,7 @@ void PackageViewController::createAncestorDependencies(qmt::MObject *object1, qm
                         auto dependency = new qmt::MDependency;
                         dependency->setFlags(qmt::MElement::ReverseEngineered);
                         // TODO set stereotype for testing purpose
-                        dependency->setStereotypes({"same stereotype"});
+                        dependency->setStereotypes(QStringList() << "same stereotype");
                         dependency->setDirection(qmt::MDependency::AToB);
                         dependency->setSource(componentAncestors.at(index1)->uid());
                         dependency->setTarget(includeComponentAncestors.at(index2)->uid());
@@ -125,7 +125,7 @@ void PackageViewController::createAncestorDependencies(qmt::MObject *object1, qm
             auto dependency = new qmt::MDependency;
             dependency->setFlags(qmt::MElement::ReverseEngineered);
             // TODO set stereotype for testing purpose
-            dependency->setStereotypes({"ancestor"});
+            dependency->setStereotypes(QStringList() << "ancestor");
             dependency->setDirection(qmt::MDependency::AToB);
             dependency->setSource(componentAncestors.at(componentHighestAncestorIndex)->uid());
             dependency->setTarget(includeComponentAncestors.at(includeComponentHighestAncestorIndex)->uid());
@@ -140,7 +140,7 @@ void PackageViewController::createAncestorDependencies(qmt::MObject *object1, qm
                 auto dependency = new qmt::MDependency;
                 dependency->setFlags(qmt::MElement::ReverseEngineered);
                 // TODO set stereotype for testing purpose
-                dependency->setStereotypes({"parents"});
+                dependency->setStereotypes(QStringList() << "parents");
                 dependency->setDirection(qmt::MDependency::AToB);
                 dependency->setSource(componentAncestors.at(0)->uid());
                 dependency->setTarget(includeComponentAncestors.at(0)->uid());

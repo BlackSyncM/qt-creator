@@ -116,7 +116,7 @@ QString ProjectIntroPage::projectName() const
 
 QString ProjectIntroPage::path() const
 {
-    return d->m_ui.pathChooser->filePath().toString();
+    return d->m_ui.pathChooser->path();
 }
 
 void ProjectIntroPage::setPath(const QString &path)

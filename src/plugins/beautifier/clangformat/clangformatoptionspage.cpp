@@ -71,7 +71,7 @@ ClangFormatOptionsPageWidget::ClangFormatOptionsPageWidget(ClangFormatSettings *
     });
     ui.configurations->setSettings(m_settings);
 
-    ui.command->setFilePath(m_settings->command());
+    ui.command->setFileName(m_settings->command());
     ui.mime->setText(m_settings->supportedMimeTypesAsString());
     const int predefinedStyleIndex = ui.predefinedStyle->findText(m_settings->predefinedStyle());
     if (predefinedStyleIndex != -1)
@@ -90,7 +90,7 @@ ClangFormatOptionsPageWidget::ClangFormatOptionsPageWidget(ClangFormatSettings *
 
 void ClangFormatOptionsPageWidget::apply()
 {
-    m_settings->setCommand(ui.command->filePath().toString());
+    m_settings->setCommand(ui.command->path());
     m_settings->setSupportedMimeTypes(ui.mime->text());
     m_settings->setUsePredefinedStyle(ui.usePredefinedStyle->isChecked());
     m_settings->setPredefinedStyle(ui.predefinedStyle->currentText());

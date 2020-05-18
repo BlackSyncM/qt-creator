@@ -73,7 +73,7 @@ const QbsProductNode *parentQbsProductNode(const ProjectExplorer::Node *node)
 
 QbsGroupNode::QbsGroupNode(const QJsonObject &grp) : ProjectNode(FilePath()), m_groupData(grp)
 {
-    static QIcon groupIcon = QIcon(QString(ProjectExplorer::Constants::FILEOVERLAY_GROUP));
+    static QIcon groupIcon = QIcon(QString(Constants::QBS_GROUP_ICON));
     setIcon(groupIcon);
     setDisplayName(grp.value("name").toString());
     setEnabled(grp.value("is-enabled").toBool());
@@ -109,7 +109,7 @@ QVariant QbsGroupNode::data(Core::Id role) const
 QbsProductNode::QbsProductNode(const QJsonObject &prd) : ProjectNode(FilePath()), m_productData(prd)
 {
     static QIcon productIcon = Core::FileIconProvider::directoryIcon(
-                ProjectExplorer::Constants::FILEOVERLAY_PRODUCT);
+                Constants::QBS_PRODUCT_OVERLAY_ICON);
     setIcon(productIcon);
     if (prd.value("is-runnable").toBool()) {
         setProductType(ProductType::App);

@@ -142,14 +142,14 @@ WebAssemblyToolChain::WebAssemblyToolChain() :
     setCompilerCommand(Utils::FilePath::fromString(command));
     setSupportedAbis({toolChainAbi()});
     setTargetAbi(toolChainAbi());
-    const QString typeAndDisplayName = tr("Emscripten Compiler");
+    const QString typeAndDisplayName = WebAssemblyToolChainFactory::tr("Emscripten Compiler");
     setDisplayName(typeAndDisplayName);
     setTypeDisplayName(typeAndDisplayName);
 }
 
 WebAssemblyToolChainFactory::WebAssemblyToolChainFactory()
 {
-    setDisplayName(WebAssemblyToolChain::tr("WebAssembly"));
+    setDisplayName(tr("WebAssembly"));
     setSupportedToolChainType(Constants::WEBASSEMBLY_TOOLCHAIN_TYPEID);
     setSupportedLanguages({ProjectExplorer::Constants::C_LANGUAGE_ID,
                            ProjectExplorer::Constants::CXX_LANGUAGE_ID});

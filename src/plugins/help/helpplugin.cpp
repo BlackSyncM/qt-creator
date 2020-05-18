@@ -116,7 +116,7 @@ public:
     void activateContents();
 
     void saveExternalWindowSettings();
-    void showLinksInCurrentViewer(const QMultiMap<QString, QUrl> &links, const QString &key);
+    void showLinksInCurrentViewer(const QMap<QString, QUrl> &links, const QString &key);
 
     void setupHelpEngineIfNeeded();
 
@@ -124,10 +124,7 @@ public:
 
     void slotSystemInformation();
 
-#ifndef HELP_NEW_FILTER_ENGINE
     void resetFilter();
-#endif
-
     static void activateHelpMode() { ModeManager::activateMode(Constants::ID_MODE_HELP); }
     static bool canShowHelpSideBySide();
 
@@ -317,8 +314,6 @@ ExtensionSystem::IPlugin::ShutdownFlag HelpPlugin::aboutToShutdown()
     return SynchronousShutdown;
 }
 
-#ifndef HELP_NEW_FILTER_ENGINE
-
 void HelpPluginPrivate::resetFilter()
 {
     const QString &filterInternal = QString::fromLatin1("Qt Creator %1.%2.%3")
@@ -353,8 +348,6 @@ void HelpPluginPrivate::resetFilter()
             LocalHelpManager::instance(), &LocalHelpManager::updateFilterModel);
 }
 
-#endif
-
 void HelpPluginPrivate::saveExternalWindowSettings()
 {
     if (!m_externalWindow)
@@ -373,7 +366,7 @@ HelpWidget *HelpPluginPrivate::createHelpWidget(const Context &context, HelpWidg
             &LocalHelpManager::returnOnCloseChanged,
             widget,
             &HelpWidget::updateCloseButton);
-    connect(widget, &HelpWidget::closeButtonClicked, this, [widget] {
+    connect(widget, &HelpWidget::closeButtonClicked, this, [this, widget] {
         if (widget->widgetStyle() == HelpWidget::SideBarWidget)
             RightPaneWidget::instance()->setShown(false);
         else if (widget->viewerCount() == 1 && LocalHelpManager::returnOnClose())
@@ -443,7 +436,7 @@ HelpWidget *HelpPlugin::modeHelpWidget()
     return dd->m_centralWidget;
 }
 
-void HelpPluginPrivate::showLinksInCurrentViewer(const QMultiMap<QString, QUrl> &links, const QString &key)
+void HelpPluginPrivate::showLinksInCurrentViewer(const QMap<QString, QUrl> &links, const QString &key)
 {
     if (links.size() < 1)
         return;
@@ -584,7 +577,7 @@ void HelpPluginPrivate::showContextHelp(const HelpItem &contextHelp)
     } else if (links.size() == 1 && !contextHelp.isFuzzyMatch()) {
         showHelpUrl(links.front().second, LocalHelpManager::contextHelpOption());
     } else {
-        QMultiMap<QString, QUrl> map;
+        QMap<QString, QUrl> map;
         for (const HelpItem::Link &link : links)
             map.insert(link.first, link.second);
         auto tc = new TopicChooser(ICore::dialogParent(), contextHelp.keyword(), map);
@@ -690,9 +683,7 @@ void HelpPluginPrivate::doSetupIfNeeded()
 {
     LocalHelpManager::setupGuiHelpEngine();
     if (m_setupNeeded) {
-#ifndef HELP_NEW_FILTER_ENGINE
         resetFilter();
-#endif
         m_setupNeeded = false;
         m_centralWidget->openPagesManager()->setupInitialPages();
         LocalHelpManager::bookmarkManager().setupBookmarkModels();

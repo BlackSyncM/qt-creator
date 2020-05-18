@@ -170,14 +170,6 @@ WorkspaceDialog::WorkspaceDialog(DockManager *manager, QWidget *parent)
             &WorkspaceView::selected,
             this,
             &WorkspaceDialog::updateActions);
-    connect(m_ui.btImport,
-            &QAbstractButton::clicked,
-            m_ui.workspaceView,
-            &WorkspaceView::importWorkspace);
-    connect(m_ui.btExport,
-            &QAbstractButton::clicked,
-            m_ui.workspaceView,
-            &WorkspaceView::exportCurrentWorkspace);
 
     m_ui.whatsAWorkspaceLabel->setOpenExternalLinks(true);
 
@@ -207,7 +199,6 @@ void WorkspaceDialog::updateActions(const QStringList &workspaces)
         m_ui.btClone->setEnabled(false);
         m_ui.btReset->setEnabled(false);
         m_ui.btSwitch->setEnabled(false);
-        m_ui.btExport->setEnabled(false);
         return;
     }
     const bool presetIsSelected = Utils::anyOf(workspaces, [this](const QString &workspace) {
@@ -221,7 +212,6 @@ void WorkspaceDialog::updateActions(const QStringList &workspaces)
     m_ui.btClone->setEnabled(workspaces.size() == 1);
     m_ui.btReset->setEnabled(presetIsSelected);
     m_ui.btSwitch->setEnabled(workspaces.size() == 1);
-    m_ui.btExport->setEnabled(workspaces.size() == 1);
 }
 
 } // namespace ADS

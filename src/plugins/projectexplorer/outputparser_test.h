@@ -36,7 +36,7 @@ namespace ProjectExplorer {
 
 class TestTerminator;
 
-class PROJECTEXPLORER_EXPORT OutputParserTester : public Utils::OutputFormatter
+class PROJECTEXPLORER_EXPORT OutputParserTester : public IOutputParser
 {
     Q_OBJECT
 
@@ -47,7 +47,6 @@ public:
     };
 
     OutputParserTester();
-    ~OutputParserTester();
 
     // test functions:
     void testParsing(const QString &lines, Channel inputChannel,
@@ -55,13 +54,22 @@ public:
                      const QString &childStdOutLines,
                      const QString &childStdErrLines,
                      const QString &outputLines);
+    void testTaskMangling(const Task &input,
+                          const Task &output);
+    void testOutputMangling(const QString &input,
+                            const QString &output);
 
     void setDebugEnabled(bool);
+
+    void appendOutputParser(IOutputParser *parser) override;
 
 signals:
     void aboutToDeleteParser();
 
 private:
+    void outputAdded(const QString &string, ProjectExplorer::BuildStep::OutputFormat format) override;
+    void taskAdded(const ProjectExplorer::Task &task, int linkedLines, int skipLines) override;
+
     void reset();
 
     bool m_debug = false;
@@ -74,16 +82,17 @@ private:
     friend class TestTerminator;
 };
 
-class TestTerminator : public OutputTaskParser
+class TestTerminator : public IOutputParser
 {
     Q_OBJECT
 
 public:
     TestTerminator(OutputParserTester *t);
 
-private:
-    Result handleLine(const QString &line, Utils::OutputFormat type) override;
+    void stdOutput(const QString &line) override;
+    void stdError(const QString &line) override;
 
+private:
     OutputParserTester *m_tester = nullptr;
 };
 

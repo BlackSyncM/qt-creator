@@ -33,7 +33,7 @@ namespace Internal {
 class QuickTestConfiguration : public DebuggableTestConfiguration
 {
 public:
-    explicit QuickTestConfiguration(ITestFramework *framework);
+    QuickTestConfiguration();
     TestOutputReader *outputReader(const QFutureInterface<TestResultPtr> &fi,
                                    QProcess *app) const override;
     QStringList argumentsForTestRunner(QStringList *omitted = nullptr) const override;

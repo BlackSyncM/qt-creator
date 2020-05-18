@@ -34,6 +34,7 @@
 #include "androidavdmanager.h"
 #include "androidrunnerworker.h"
 
+#include <QHostAddress>
 #include <coreplugin/messagemanager.h>
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectexplorersettings.h>
@@ -41,7 +42,6 @@
 #include <projectexplorer/target.h>
 #include <utils/url.h>
 
-#include <QHostAddress>
 #include <QLoggingCategory>
 
 namespace {
@@ -50,6 +50,70 @@ static Q_LOGGING_CATEGORY(androidRunnerLog, "qtc.android.run.androidrunner", QtW
 
 using namespace ProjectExplorer;
 using namespace Utils;
+
+/*
+    This uses explicit handshakes between the application and the
+    gdbserver start and the host side by using the gdbserver socket.
+
+    For the handshake there are two mechanisms. Only the first method works
+    on Android 5.x devices and is chosen as default option. The second
+    method can be enabled by setting the QTC_ANDROID_USE_FILE_HANDSHAKE
+    environment variable before starting Qt Creator.
+
+    1.) This method uses a TCP server on the Android device which starts
+    listening for incoming connections. The socket is forwarded by adb
+    and creator connects to it. This is the only method that works
+    on Android 5.x devices.
+
+    2.) This method uses two files ("ping" file in the application dir,
+    "pong" file in /data/local/tmp/qt).
+
+    The sequence is as follows:
+
+     host: adb forward debugsocket :5039
+
+     host: adb shell rm pong file
+     host: adb shell am start
+     host: loop until ping file appears
+
+         app start up: launch gdbserver --multi +debug-socket
+         app start up: loop until debug socket appear
+
+             gdbserver: normal start up including opening debug-socket,
+                        not yet attached to any process
+
+         app start up: 1.) set up ping connection or 2.) touch ping file
+         app start up: 1.) accept() or 2.) loop until pong file appears
+
+     host: start gdb
+     host: gdb: set up binary, breakpoints, path etc
+     host: gdb: target extended-remote :5039
+
+             gdbserver: accepts connection from gdb
+
+     host: gdb: attach <application-pid>
+
+             gdbserver: attaches to the application
+                        and stops it
+
+         app start up: stopped now (it is still waiting for
+                       the pong anyway)
+
+     host: gdb: continue
+
+             gdbserver: resumes application
+
+         app start up: resumed (still waiting for the pong)
+
+     host: 1) write "ok" to ping pong connection or 2.) write pong file
+
+         app start up: java code continues now, the process
+                       is already fully under control
+                       of gdbserver. Breakpoints are set etc,
+                       we are before main.
+         app start up: native code launches
+
+*/
 
 namespace Android {
 namespace Internal {
@@ -68,10 +132,7 @@ AndroidRunner::AndroidRunner(RunControl *runControl, const QString &intentName)
     m_checkAVDTimer.setInterval(2000);
     connect(&m_checkAVDTimer, &QTimer::timeout, this, &AndroidRunner::checkAVD);
 
-    QString intent = intentName;
-    if (intent.isEmpty())
-        intent = AndroidManager::packageName(m_target) + '/' + AndroidManager::activityName(m_target);
-
+    QString intent = intentName.isEmpty() ? AndroidManager::intentName(m_target) : intentName;
     m_packageName = intent.left(intent.indexOf('/'));
     qCDebug(androidRunnerLog) << "Intent name:" << intent << "Package name" << m_packageName;
 
@@ -151,22 +212,22 @@ void AndroidRunner::qmlServerPortReady(Port port)
 void AndroidRunner::remoteOutput(const QString &output)
 {
     Core::MessageManager::write("LOGCAT: " + output, Core::MessageManager::Silent);
-    appendMessage(output, Utils::StdOutFormat);
+    appendMessage(output, Utils::StdOutFormatSameLine);
     m_outputParser.processOutput(output);
 }
 
 void AndroidRunner::remoteErrorOutput(const QString &output)
 {
     Core::MessageManager::write("LOGCAT: " + output, Core::MessageManager::Silent);
-    appendMessage(output, Utils::StdErrFormat);
+    appendMessage(output, Utils::StdErrFormatSameLine);
     m_outputParser.processOutput(output);
 }
 
-void AndroidRunner::handleRemoteProcessStarted(Utils::Port debugServerPort,
+void AndroidRunner::handleRemoteProcessStarted(Utils::Port gdbServerPort,
                                                const QUrl &qmlServer, qint64 pid)
 {
     m_pid = ProcessHandle(pid);
-    m_debugServerPort = debugServerPort;
+    m_gdbServerPort = gdbServerPort;
     m_qmlServer = qmlServer;
     reportStarted();
 }

@@ -76,7 +76,6 @@ QtcPlugin {
         "testprojectsettings.h",
         "itestparser.cpp",
         "itestparser.h",
-        "itestframework.cpp",
         "itestframework.h",
         "iframeworksettings.h",
         "testframeworkmanager.cpp",
@@ -109,13 +108,6 @@ QtcPlugin {
         name: "Boost Test framework files"
         files: [
             "boost/*"
-        ]
-    }
-
-    Group {
-        name: "Catch framework files"
-        files: [
-            "catch/*"
         ]
     }
 

@@ -214,23 +214,35 @@ bool FlatModel::setData(const QModelIndex &index, const QVariant &value, int rol
     // The base name of the file was changed. Go look for other files with the same base name
     // and offer to rename them as well.
     if (orgFilePath != newFilePath && orgFileInfo.suffix() == newFilePath.toFileInfo().suffix()) {
-        const QList<Node *> candidateNodes = ProjectTree::siblingsWithSameBaseName(node);
-        if (!candidateNodes.isEmpty()) {
-            const QMessageBox::StandardButton reply = QMessageBox::question(
-                        Core::ICore::mainWindow(), tr("Rename More Files?"),
-                        tr("Would you like to rename these files as well?\n    %1")
-                        .arg(transform<QStringList>(candidateNodes, [](const Node *n) {
-                return n->filePath().toFileInfo().fileName();
-            }).join("\n    ")));
-            if (reply == QMessageBox::Yes) {
-                for (Node * const n : candidateNodes) {
-                    QString targetFilePath = orgFileInfo.absolutePath() + '/'
-                            + newFilePath.toFileInfo().completeBaseName();
-                    const QString suffix = n->filePath().toFileInfo().suffix();
-                    if (!suffix.isEmpty())
-                        targetFilePath.append('.').append(suffix);
-                    toRename.emplace_back(std::make_tuple(n, n->filePath(),
-                                                          FilePath::fromString(targetFilePath)));
+        ProjectNode *productNode = node->parentProjectNode();
+        while (productNode && !productNode->isProduct())
+            productNode = productNode->parentProjectNode();
+        if (productNode) {
+            const auto filter = [&orgFilePath, &orgFileInfo](const Node *n) {
+                return n->asFileNode()
+                        && n->filePath().toFileInfo().dir() == orgFileInfo.dir()
+                        && n->filePath().toFileInfo().completeBaseName()
+                                == orgFileInfo.completeBaseName()
+                        && n->filePath() != orgFilePath;
+            };
+            const QList<Node *> candidateNodes = productNode->findNodes(filter);
+            if (!candidateNodes.isEmpty()) {
+                const QMessageBox::StandardButton reply = QMessageBox::question(
+                            Core::ICore::mainWindow(), tr("Rename More Files?"),
+                            tr("Would you like to rename these files as well?\n    %1")
+                            .arg(transform<QStringList>(candidateNodes, [](const Node *n) {
+                    return n->filePath().toFileInfo().fileName();
+                }).join("\n    ")));
+                if (reply == QMessageBox::Yes) {
+                    for (Node * const n : candidateNodes) {
+                        QString targetFilePath = orgFileInfo.absolutePath() + '/'
+                                + newFilePath.toFileInfo().completeBaseName();
+                        const QString suffix = n->filePath().toFileInfo().suffix();
+                        if (!suffix.isEmpty())
+                            targetFilePath.append('.').append(suffix);
+                        toRename.emplace_back(std::make_tuple(n, n->filePath(),
+                                FilePath::fromString(targetFilePath)));
+                    }
                 }
             }
         }
@@ -358,7 +370,6 @@ void FlatModel::handleProjectAdded(Project *project)
             this, [this, project]() {
         if (nodeForProject(project))
             parsingStateChanged(project);
-        emit ProjectTree::instance()->nodeActionsChanged();
     });
     addOrRebuildProjectModel(project);
 }
@@ -504,7 +515,7 @@ public:
             targetDirLayout->addWidget(new QLabel(tr("Target directory:"), this));
             m_targetDirChooser = new PathChooser(this);
             m_targetDirChooser->setExpectedKind(PathChooser::ExistingDirectory);
-            m_targetDirChooser->setFilePath(defaultTargetDir);
+            m_targetDirChooser->setFileName(defaultTargetDir);
             connect(m_targetDirChooser, &PathChooser::validChanged, this, [this](bool valid) {
                 m_buttonBox->button(QDialogButtonBox::Ok)->setEnabled(valid);
             });
@@ -537,7 +548,7 @@ public:
     DropAction dropAction() const { return static_cast<DropAction>(m_buttonGroup->checkedId()); }
     FilePath targetDir() const
     {
-        return m_targetDirChooser ? m_targetDirChooser->filePath() : FilePath();
+        return m_targetDirChooser ? m_targetDirChooser->fileName() : FilePath();
     }
 
 private:

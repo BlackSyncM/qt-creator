@@ -48,12 +48,8 @@ public:
     Q_FLAGS(TestState)
     Q_DECLARE_FLAGS(TestStates, TestState)
 
-    explicit BoostTestTreeItem(ITestFramework *framework,
-                               const QString &name = QString(),
-                               const QString &filePath = QString(),
-                               Type type = Root)
-        : TestTreeItem(framework, name, filePath, type)
-    {}
+    explicit BoostTestTreeItem(const QString &name = QString(), const QString &filePath = QString(),
+                               Type type = Root) : TestTreeItem(name, filePath, type) {}
 
 public:
     TestTreeItem *copyWithoutChildren() override;

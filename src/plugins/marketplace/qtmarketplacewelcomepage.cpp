@@ -60,12 +60,27 @@ Core::Id QtMarketplaceWelcomePage::id() const
     return "Marketplace";
 }
 
+class ProductItemDelegate : public Core::ListItemDelegate
+{
+public:
+    void clickAction(const Core::ListItem *item) const override
+    {
+        QTC_ASSERT(item, return);
+        auto productItem = static_cast<const ProductItem *>(item);
+        const QUrl url(QString("https://marketplace.qt.io/products/").append(productItem->handle));
+        QDesktopServices::openUrl(url);
+    }
+};
+
 class QtMarketplacePageWidget : public QWidget
 {
 public:
     QtMarketplacePageWidget()
+        : m_productModel(new ProductListModel(this))
     {
         const int sideMargin = 27;
+        auto filteredModel = new Core::ListModelFilter(m_productModel, this);
+
         auto searchBox = new Core::SearchBox(this);
         m_searcher = searchBox->m_lineEdit;
         m_searcher->setPlaceholderText(QtMarketplaceWelcomePage::tr("Search in Marketplace..."));
@@ -81,18 +96,21 @@ public:
         m_errorLabel->setVisible(false);
         vbox->addWidget(m_errorLabel);
 
-        m_sectionedProducts = new SectionedProducts(this);
-        auto progressIndicator = new Utils::ProgressIndicator(ProgressIndicatorSize::Large, this);
-        progressIndicator->attachToWidget(m_sectionedProducts);
-        progressIndicator->hide();
-        vbox->addWidget(m_sectionedProducts);
+        m_gridModel.setSourceModel(filteredModel);
 
-        connect(m_sectionedProducts, &SectionedProducts::toggleProgressIndicator,
+        auto gridView = new Core::GridView(this);
+        gridView->setModel(&m_gridModel);
+        gridView->setItemDelegate(&m_productDelegate);
+        vbox->addWidget(gridView);
+
+        auto progressIndicator = new Utils::ProgressIndicator(ProgressIndicatorSize::Large, this);
+        progressIndicator->attachToWidget(gridView);
+        progressIndicator->hide();
+
+        connect(m_productModel, &ProductListModel::toggleProgressIndicator,
                 progressIndicator, &Utils::ProgressIndicator::setVisible);
-        connect(m_sectionedProducts, &SectionedProducts::errorOccurred,
-                [this, progressIndicator, searchBox](int, const QString &message) {
-            progressIndicator->hide();
-            progressIndicator->deleteLater();
+        connect(m_productModel, &ProductListModel::errorOccurred,
+                [this, searchBox](int, const QString &message) {
             m_errorLabel->setAlignment(Qt::AlignHCenter);
             QFont f(m_errorLabel->font());
             f.setPixelSize(20);
@@ -108,18 +126,17 @@ public:
             connect(m_errorLabel, &QLabel::linkActivated,
                     this, []() { QDesktopServices::openUrl(QUrl("https://marketplace.qt.io")); });
         });
-
-        connect(m_searcher, &QLineEdit::textChanged,
-                m_sectionedProducts, &SectionedProducts::setSearchString);
-        connect(m_sectionedProducts, &SectionedProducts::tagClicked,
+        connect(&m_productDelegate, &ProductItemDelegate::tagClicked,
                 this, &QtMarketplacePageWidget::onTagClicked);
+        connect(m_searcher, &QLineEdit::textChanged,
+                filteredModel, &Core::ListModelFilter::setSearchString);
     }
 
     void showEvent(QShowEvent *event) override
     {
         if (!m_initialized) {
             m_initialized = true;
-            m_sectionedProducts->updateCollections();
+            m_productModel->updateCollections();
         }
         QWidget::showEvent(event);
     }
@@ -127,7 +144,7 @@ public:
     void resizeEvent(QResizeEvent *ev) final
     {
         QWidget::resizeEvent(ev);
-        m_sectionedProducts->setColumnCount(bestColumnCount());
+        m_gridModel.setColumnCount(bestColumnCount());
     }
 
     int bestColumnCount() const
@@ -143,9 +160,11 @@ public:
     }
 
 private:
-    SectionedProducts *m_sectionedProducts = nullptr;
+    ProductItemDelegate m_productDelegate;
+    ProductListModel *m_productModel = nullptr;
     QLabel *m_errorLabel = nullptr;
     QLineEdit *m_searcher = nullptr;
+    Core::GridProxyModel m_gridModel;
     bool m_initialized = false;
 };
 

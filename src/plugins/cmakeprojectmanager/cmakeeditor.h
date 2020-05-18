@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <texteditor/textdocument.h>
 #include <texteditor/texteditor.h>
 
 namespace CMakeProjectManager {

@@ -30,26 +30,25 @@
 #include <projectexplorer/ioutputparser.h>
 #include <projectexplorer/task.h>
 
-#include <utils/optional.h>
-
 #include <QDir>
 #include <QRegExp>
 #include <QRegularExpression>
 
 namespace CMakeProjectManager {
 
-class CMAKE_EXPORT CMakeParser : public ProjectExplorer::OutputTaskParser
+class CMAKE_EXPORT CMakeParser : public ProjectExplorer::IOutputParser
 {
     Q_OBJECT
 
 public:
     explicit CMakeParser();
     void setSourceDirectory(const QString &sourceDir);
+    void stdError(const QString &line) override;
+
+protected:
+    void doFlush() override;
 
 private:
-    Result handleLine(const QString &line, Utils::OutputFormat type) override;
-    void flush() override;
-
     enum TripleLineError { NONE, LINE_LOCATION, LINE_DESCRIPTION, LINE_DESCRIPTION2 };
 
     TripleLineError m_expectTripleLineErrorData = NONE;

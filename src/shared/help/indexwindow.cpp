@@ -47,11 +47,6 @@
 #include <QHelpEngine>
 #include <QHelpIndexModel>
 
-#ifdef HELP_NEW_FILTER_ENGINE
-#include <QHelpLink>
-#endif
-
-
 using namespace Help::Internal;
 
 IndexWindow::IndexWindow()
@@ -200,16 +195,8 @@ void IndexWindow::disableSearchLineEdit()
 
 void IndexWindow::open(const QModelIndex &index, bool newPage)
 {
-    const QString keyword = m_filteredIndexModel->data(index, Qt::DisplayRole).toString();
-#ifndef HELP_NEW_FILTER_ENGINE
-    QMultiMap<QString, QUrl> links = LocalHelpManager::helpEngine().linksForKeyword(keyword);
-#else
-    QMultiMap<QString, QUrl> links;
-    const QList<QHelpLink> docs = LocalHelpManager::helpEngine().documentsForKeyword(keyword);
-    for (const auto doc : docs)
-        links.insert(doc.title, doc.url);
-
-#endif
+    QString keyword = m_filteredIndexModel->data(index, Qt::DisplayRole).toString();
+    QMap<QString, QUrl> links = LocalHelpManager::helpEngine().indexModel()->linksForKeyword(keyword);
     emit linksActivated(links, keyword, newPage);
 }
 

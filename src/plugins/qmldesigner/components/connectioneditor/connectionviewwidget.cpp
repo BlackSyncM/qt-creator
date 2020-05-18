@@ -58,6 +58,7 @@ ConnectionViewWidget::ConnectionViewWidget(QWidget *parent) :
     ui(new Ui::ConnectionViewWidget)
 {
     m_actionEditor = new QmlDesigner::ActionEditor(this);
+    m_deleteShortcut = new QShortcut(this);
     QObject::connect(m_actionEditor, &QmlDesigner::ActionEditor::accepted,
                      [&]() {
         if (m_actionEditor->hasModelIndex()) {
@@ -124,6 +125,7 @@ ConnectionViewWidget::~ConnectionViewWidget()
 {
     delete m_actionEditor;
     delete ui;
+    delete m_deleteShortcut;
 }
 
 void ConnectionViewWidget::setBindingModel(BindingModel *model)
@@ -213,11 +215,9 @@ QList<QToolButton *> ConnectionViewWidget::createToolBarWidgets()
     connect(buttons.constLast(), &QAbstractButton::clicked, this, &ConnectionViewWidget::removeButtonClicked);
     connect(this, &ConnectionViewWidget::setEnabledRemoveButton, buttons.constLast(), &QWidget::setEnabled);
 
-    QAction *deleteShortcut = new QAction(this);
-    this->addAction(deleteShortcut);
-    deleteShortcut->setShortcuts({QKeySequence::Delete, QKeySequence::Backspace});
-    deleteShortcut->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    connect(deleteShortcut, &QAction::triggered, this, &ConnectionViewWidget::removeButtonClicked);
+    m_deleteShortcut->setKey(Qt::Key_Delete);
+    m_deleteShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(m_deleteShortcut, &QShortcut::activated, this, &ConnectionViewWidget::removeButtonClicked);
 
     return buttons;
 }

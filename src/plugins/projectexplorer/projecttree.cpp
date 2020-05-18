@@ -48,7 +48,6 @@
 #include <utils/qtcassert.h>
 
 #include <QApplication>
-#include <QFileInfo>
 #include <QMenu>
 #include <QTimer>
 
@@ -155,7 +154,7 @@ void ProjectTree::update()
     ProjectTreeWidget *focus = m_focusForContextMenu;
     static QPointer<ProjectTreeWidget> lastFocusedProjectTreeWidget;
     if (!focus) {
-        focus = currentWidget();
+        focus = Utils::findOrDefault(m_projectTreeWidgets, &ProjectTree::hasFocus);
         lastFocusedProjectTreeWidget = focus;
     }
     if (!focus)
@@ -285,21 +284,15 @@ void ProjectTree::sessionAndTreeChanged()
     emit treeChanged();
 }
 
-void ProjectTree::expandCurrentNodeRecursively()
-{
-    if (const auto w = currentWidget())
-        w->expandCurrentNodeRecursively();
-}
-
 void ProjectTree::collapseAll()
 {
-    if (const auto w = currentWidget())
+    if (auto w = Utils::findOrDefault(s_instance->m_projectTreeWidgets, &ProjectTree::hasFocus))
         w->collapseAll();
 }
 
 void ProjectTree::expandAll()
 {
-    if (const auto w = currentWidget())
+    if (auto w = Utils::findOrDefault(s_instance->m_projectTreeWidgets, &ProjectTree::hasFocus))
         w->expandAll();
 }
 
@@ -349,11 +342,6 @@ bool ProjectTree::hasFocus(ProjectTreeWidget *widget)
     return widget
             && ((widget->focusWidget() && widget->focusWidget()->hasFocus())
                 || s_instance->m_focusForContextMenu == widget);
-}
-
-ProjectTreeWidget *ProjectTree::currentWidget() const
-{
-    return findOrDefault(m_projectTreeWidgets, &ProjectTree::hasFocus);
 }
 
 void ProjectTree::showContextMenu(ProjectTreeWidget *focus, const QPoint &globalPos, Node *node)
@@ -469,23 +457,6 @@ Node *ProjectTree::nodeForFile(const FilePath &fileName)
         }
     }
     return node;
-}
-
-const QList<Node *> ProjectTree::siblingsWithSameBaseName(const Node *fileNode)
-{
-    ProjectNode *productNode = fileNode->parentProjectNode();
-    while (productNode && !productNode->isProduct())
-        productNode = productNode->parentProjectNode();
-    if (!productNode)
-        return {};
-    const QFileInfo fi = fileNode->filePath().toFileInfo();
-    const auto filter = [&fi](const Node *n) {
-        return n->asFileNode()
-                && n->filePath().toFileInfo().dir() == fi.dir()
-                && n->filePath().toFileInfo().completeBaseName() == fi.completeBaseName()
-                && n->filePath().toString() != fi.filePath();
-    };
-    return productNode->findNodes(filter);
 }
 
 void ProjectTree::hideContextMenu()

@@ -45,7 +45,6 @@ namespace Internal {
 class TestRunConfiguration;
 } // namespace Internal
 
-class ITestFramework;
 class TestOutputReader;
 class TestResult;
 enum class TestRunMode;
@@ -55,7 +54,7 @@ using TestResultPtr = QSharedPointer<TestResult>;
 class TestConfiguration
 {
 public:
-    explicit TestConfiguration(ITestFramework *framework);
+    explicit TestConfiguration() = default;
     virtual ~TestConfiguration();
 
     void completeTestInformation(TestRunMode runMode);
@@ -74,7 +73,6 @@ public:
     void setInternalTargets(const QSet<QString> &targets);
     void setOriginalRunConfiguration(ProjectExplorer::RunConfiguration *runConfig);
 
-    ITestFramework *framework() const;
     QStringList testCases() const { return m_testCases; }
     int testCaseCount() const { return m_testCaseCount; }
     QString executableFilePath() const;
@@ -97,9 +95,7 @@ public:
                                            QProcess *app) const = 0;
     virtual QStringList argumentsForTestRunner(QStringList *omitted = nullptr) const = 0;
     virtual Utils::Environment filteredEnvironment(const Utils::Environment &original) const = 0;
-
 private:
-    ITestFramework *m_framework;
     QStringList m_testCases;
     int m_testCaseCount = 0;
     QString m_projectFile;
@@ -117,8 +113,8 @@ private:
 class DebuggableTestConfiguration : public TestConfiguration
 {
 public:
-    explicit DebuggableTestConfiguration(ITestFramework *framework, TestRunMode runMode = TestRunMode::Run)
-        : TestConfiguration(framework), m_runMode(runMode) {}
+    explicit DebuggableTestConfiguration(TestRunMode runMode = TestRunMode::Run)
+        : m_runMode(runMode) {}
 
     void setRunMode(TestRunMode mode) { m_runMode = mode; }
     TestRunMode runMode() const { return m_runMode; }

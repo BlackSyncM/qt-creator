@@ -43,7 +43,7 @@ class CommandsFile : public QObject
 public:
     CommandsFile(const QString &filename);
 
-    QMap<QString, QList<QKeySequence> > importCommands() const;
+    QMap<QString, QKeySequence> importCommands() const;
     bool exportCommands(const QList<ShortcutItem *> &items);
 
 private:

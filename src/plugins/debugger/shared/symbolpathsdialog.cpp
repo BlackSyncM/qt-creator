@@ -56,7 +56,7 @@ bool SymbolPathsDialog::useSymbolServer() const
 
 QString SymbolPathsDialog::path() const
 {
-    return ui->pathChooser->filePath().toString();
+    return ui->pathChooser->path();
 }
 
 void SymbolPathsDialog::setUseSymbolCache(bool useSymbolCache)

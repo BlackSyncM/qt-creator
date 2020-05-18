@@ -24,10 +24,9 @@
 #ifndef KSYNTAXHIGHLIGHTING_TEXTSTYLEDATA_P_H
 #define KSYNTAXHIGHLIGHTING_TEXTSTYLEDATA_P_H
 
-#include <QColor>
 
-namespace KSyntaxHighlighting
-{
+namespace KSyntaxHighlighting {
+
 class TextStyleData
 {
 public:
@@ -41,22 +40,21 @@ public:
         , hasItalic(false)
         , hasUnderline(false)
         , hasStrikeThrough(false)
-    {
-    }
+    {}
 
     QRgb textColor = 0x0;
     QRgb backgroundColor = 0x0;
     QRgb selectedTextColor = 0x0;
     QRgb selectedBackgroundColor = 0x0;
-    bool bold : 1;
-    bool italic : 1;
-    bool underline : 1;
-    bool strikeThrough : 1;
+    bool bold :1;
+    bool italic :1;
+    bool underline :1;
+    bool strikeThrough :1;
 
-    bool hasBold : 1;
-    bool hasItalic : 1;
-    bool hasUnderline : 1;
-    bool hasStrikeThrough : 1;
+    bool hasBold :1;
+    bool hasItalic :1;
+    bool hasUnderline :1;
+    bool hasStrikeThrough :1;
 };
 
 }

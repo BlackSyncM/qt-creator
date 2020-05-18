@@ -49,6 +49,8 @@
 #include <cpptools/cppprojectupdater.h>
 #include <cpptools/cpptoolsconstants.h>
 #include <cpptools/generatedcodemodelsupport.h>
+#include <extensionsystem/pluginmanager.h>
+#include <projectexplorer/buildenvironmentwidget.h>
 #include <projectexplorer/buildinfo.h>
 #include <projectexplorer/buildmanager.h>
 #include <projectexplorer/buildtargetinfo.h>
@@ -77,7 +79,6 @@
 #include <QJsonArray>
 #include <QMessageBox>
 #include <QSet>
-#include <QTimer>
 #include <QVariantMap>
 
 #include <algorithm>
@@ -202,6 +203,7 @@ QbsBuildSystem::QbsBuildSystem(QbsBuildConfiguration *bc)
     });
     connect(m_session, &QbsSession::fileListUpdated, this, &QbsBuildSystem::delayParsing);
 
+    m_parsingDelay.setInterval(1000); // delay parsing by 1s.
     delayParsing();
 
     connect(bc->project(), &Project::activeTargetChanged,
@@ -209,6 +211,8 @@ QbsBuildSystem::QbsBuildSystem(QbsBuildConfiguration *bc)
 
     connect(bc->target(), &Target::activeBuildConfigurationChanged,
             this, &QbsBuildSystem::delayParsing);
+
+    connect(&m_parsingDelay, &QTimer::timeout, this, &QbsBuildSystem::triggerParsing);
 
     connect(bc->project(), &Project::projectFileIsDirty, this, &QbsBuildSystem::delayParsing);
     updateProjectNodes({});
@@ -476,7 +480,7 @@ void QbsBuildSystem::updateProjectNodes(const std::function<void ()> &continuati
     m_treeCreationWatcher = new TreeCreationWatcher(this);
     connect(m_treeCreationWatcher, &TreeCreationWatcher::finished, this,
             [this, watcher = m_treeCreationWatcher, continuation] {
-        std::unique_ptr<QbsProjectNode> rootNode(watcher->result());
+        std::unique_ptr<QbsProjectNode> rootNode(m_treeCreationWatcher->result());
         if (watcher != m_treeCreationWatcher) {
             watcher->deleteLater();
             return;
@@ -593,7 +597,7 @@ void QbsBuildSystem::triggerParsing()
 void QbsBuildSystem::delayParsing()
 {
     if (m_buildConfiguration->isActive())
-        requestDelayedParse();
+        m_parsingDelay.start();
 }
 
 void QbsBuildSystem::parseCurrentBuildConfiguration()
@@ -631,7 +635,7 @@ void QbsBuildSystem::parseCurrentBuildConfiguration()
 
     prepareForParsing();
 
-    cancelDelayedParseRequest();
+    m_parsingDelay.stop();
 
     QTC_ASSERT(!m_qbsProjectParser, return);
     m_qbsProjectParser = new QbsProjectParser(this, m_qbsUpdateFutureInterface);

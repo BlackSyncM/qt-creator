@@ -44,6 +44,9 @@ class QMAKEPROJECTMANAGER_EXPORT QmakeBuildConfiguration : public ProjectExplore
 {
     Q_OBJECT
 
+    // used in DebuggerRunConfigurationAspect
+    Q_PROPERTY(bool linkQmlDebuggingLibrary READ linkQmlDebuggingLibrary NOTIFY qmlDebuggingChanged)
+
 public:
     QmakeBuildConfiguration(ProjectExplorer::Target *target, Core::Id id);
     ~QmakeBuildConfiguration() override;
@@ -100,6 +103,7 @@ public:
     void forceSeparateDebugInfo(bool sepDebugInfo);
 
     ProjectExplorer::TriState qmlDebugging() const;
+    bool linkQmlDebuggingLibrary() const;
     void forceQmlDebugging(bool enable);
 
     ProjectExplorer::TriState useQtQuickCompiler() const;

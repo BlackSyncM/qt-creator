@@ -75,7 +75,7 @@ void QmlProfilerActions::attachToTool(QmlProfilerTool *tool)
 
     QmlProfilerStateManager *stateManager = tool->stateManager();
     connect(stateManager, &QmlProfilerStateManager::serverRecordingChanged,
-            this, [this](bool recording) {
+            this, [this, stateManager](bool recording) {
         m_loadQmlTrace->setEnabled(!recording);
     });
     m_loadQmlTrace->setEnabled(!stateManager->serverRecording());

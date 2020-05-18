@@ -220,11 +220,9 @@ void ProgressIndicatorPainter::nextAnimationStep()
     \sa setIndicatorSize
 */
 ProgressIndicator::ProgressIndicator(ProgressIndicatorSize size, QWidget *parent)
-    : OverlayWidget(parent)
-    , m_paint(size)
+    : QWidget(parent), m_paint(size)
 {
-    setPaintFunction(
-        [this](QWidget *w, QPainter &p, QPaintEvent *) { m_paint.paint(p, w->rect()); });
+    setAttribute(Qt::WA_TransparentForMouseEvents);
     m_paint.setUpdateCallback([this]() { update(); });
     updateGeometry();
 }
@@ -251,6 +249,29 @@ QSize ProgressIndicator::sizeHint() const
 }
 
 /*!
+    Makes the indicator a child of \a parent, automatically centering on it,
+    and adapting to size changes.
+*/
+void ProgressIndicator::attachToWidget(QWidget *parent)
+{
+    if (parentWidget())
+        parentWidget()->removeEventFilter(this);
+    setParent(parent);
+    parent->installEventFilter(this);
+    resizeToParent();
+    raise();
+}
+
+/*!
+    \internal
+*/
+void ProgressIndicator::paintEvent(QPaintEvent *)
+{
+    QPainter p(this);
+    m_paint.paint(p, rect());
+}
+
+/*!
     \internal
 */
 void ProgressIndicator::showEvent(QShowEvent *)
@@ -264,6 +285,26 @@ void ProgressIndicator::showEvent(QShowEvent *)
 void ProgressIndicator::hideEvent(QHideEvent *)
 {
     m_paint.stopAnimation();
+}
+
+/*!
+    \internal
+*/
+bool ProgressIndicator::eventFilter(QObject *obj, QEvent *ev)
+{
+    if (obj == parent() && ev->type() == QEvent::Resize) {
+        resizeToParent();
+    }
+    return QWidget::eventFilter(obj, ev);
+}
+
+/*!
+    \internal
+*/
+void ProgressIndicator::resizeToParent()
+{
+    QTC_ASSERT(parentWidget(), return);
+    setGeometry(QRect(QPoint(0, 0), parentWidget()->size()));
 }
 
 } // namespace Utils

@@ -33,17 +33,19 @@
 
 namespace ProjectExplorer {
 
-class PROJECTEXPLORER_EXPORT OsParser : public ProjectExplorer::OutputTaskParser
+class PROJECTEXPLORER_EXPORT OsParser : public ProjectExplorer::IOutputParser
 {
     Q_OBJECT
 
 public:
     OsParser();
 
-private:
-    Result handleLine(const QString &line, Utils::OutputFormat type) override;
-    bool hasFatalErrors() const override { return m_hasFatalError; }
+    void stdError(const QString &line) override;
+    void stdOutput(const QString &line) override;
 
+    bool hasFatalErrors() const override;
+
+private:
     bool m_hasFatalError = false;
 };
 

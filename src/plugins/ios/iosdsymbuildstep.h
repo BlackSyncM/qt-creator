@@ -56,7 +56,6 @@ public:
 private:
     bool init() override;
     void doRun() override;
-    void setupOutputFormatter(Utils::OutputFormatter *formatter) override;
     QVariantMap toMap() const override;
     bool fromMap(const QVariantMap &map) override;
 

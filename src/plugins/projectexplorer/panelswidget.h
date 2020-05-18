@@ -27,7 +27,7 @@
 
 #include "projectexplorer_export.h"
 
-#include <QWidget>
+#include <QScrollArea>
 
 QT_BEGIN_NAMESPACE
 class QGridLayout;
@@ -51,6 +51,7 @@ public:
 
 private:
     QGridLayout *m_layout;
+    QScrollArea *m_scroller;
     QWidget *m_root;
 };
 

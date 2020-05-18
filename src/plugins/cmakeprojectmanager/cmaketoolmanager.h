@@ -26,16 +26,13 @@
 #pragma once
 
 #include "cmake_global.h"
-
 #include "cmaketool.h"
 
-#include <coreplugin/id.h>
-
 #include <utils/fileutils.h>
+#include <texteditor/codeassist/keywordscompletionassist.h>
+#include <functional>
 
 #include <QObject>
-
-#include <memory>
 
 namespace CMakeProjectManager {
 
@@ -44,7 +41,7 @@ class CMAKE_EXPORT CMakeToolManager : public QObject
     Q_OBJECT
 public:
     CMakeToolManager();
-    ~CMakeToolManager();
+    ~CMakeToolManager() override;
 
     static CMakeToolManager *instance();
 

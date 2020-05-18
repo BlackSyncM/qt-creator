@@ -64,7 +64,7 @@ public:
     void handleJdbSettled();
 
 signals:
-    void remoteProcessStarted(Utils::Port debugServerPort, const QUrl &qmlServer, qint64 pid);
+    void remoteProcessStarted(Utils::Port gdbServerPort, const QUrl &qmlServer, qint64 pid);
     void remoteProcessFinished(const QString &errString = QString());
 
     void remoteOutput(const QString &output);
@@ -72,10 +72,11 @@ signals:
 
 private:
     void asyncStartHelper();
-    bool startDebuggerServer(const QString &packageDir, const QString &debugServerFile, QString *errorStr = nullptr);
+    bool startDebuggerServer(const QString &packageDir, const QString &gdbServerPrefix,
+                             const QString &gdbServerExecutable, QString *errorStr = nullptr);
     bool deviceFileExists(const QString &filePath);
     bool packageFileExists(const QString& filePath);
-    bool uploadDebugServer(const QString &debugServerFileName);
+    bool uploadGdbServer();
 
     enum class JDBState {
         Idle,
@@ -100,19 +101,18 @@ private:
     QRegExp m_logCatRegExp;
     QFuture<qint64> m_pidFinder;
     bool m_useCppDebugger = false;
-    bool m_useLldb = false; // FIXME: Un-implemented currently.
     QmlDebug::QmlDebugServicesPreset m_qmlDebugServices;
-    Utils::Port m_localDebugServerPort; // Local end of forwarded debug socket.
+    Utils::Port m_localGdbServerPort; // Local end of forwarded debug socket.
     QUrl m_qmlServer;
     JDBState m_jdbState = JDBState::Idle;
     Utils::Port m_localJdbServerPort;
-    std::unique_ptr<QProcess, Deleter> m_debugServerProcess; // gdbserver or lldb-server
+    std::unique_ptr<QProcess, Deleter> m_gdbServerProcess;
     std::unique_ptr<QProcess, Deleter> m_jdbProcess;
     QString m_deviceSerialNumber;
     int m_apiLevel = -1;
     QString m_extraAppParams;
     Utils::Environment m_extraEnvVars;
-    QString m_debugServerPath;
+    QString m_gdbserverPath;
     bool m_useAppParamsForQmlDebugger = false;
 };
 

@@ -87,7 +87,6 @@ public:
     void clearAll(const QString &message);
     void clearAllData();
     void saveState();
-    using TextEditor::TextEditorWidget::restoreState;
     void restoreState();
 
     void setFolded(int blockNumber, bool folded);

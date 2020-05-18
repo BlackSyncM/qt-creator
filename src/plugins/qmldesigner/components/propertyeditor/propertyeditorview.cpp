@@ -212,6 +212,7 @@ void PropertyEditorView::changeValue(const QString &name)
         }
     }
 
+    bool forceReset = false;
     if (name == "state" && castedValue.toString() == "base state")
         castedValue = "";
 

@@ -21,13 +21,6 @@ add_qtc_plugin(AutoTest
     boost/boosttestsettings.cpp boost/boosttestsettings.h
     boost/boosttestsettingspage.cpp boost/boosttestsettingspage.h boost/boosttestsettingspage.ui
     boost/boosttesttreeitem.cpp boost/boosttesttreeitem.h
-    catch/catchcodeparser.cpp catch/catchcodeparser.h
-    catch/catchconfiguration.cpp catch/catchconfiguration.h
-    catch/catchframework.h catch/catchframework.cpp catch/catchoutputreader.h
-    catch/catchoutputreader.cpp catch/catchresult.h catch/catchresult.cpp catch/catchtestparser.h
-    catch/catchtestparser.cpp catch/catchtreeitem.h catch/catchtreeitem.cpp
-    catch/catchtestsettings.cpp catch/catchtestsettings.h
-    catch/catchtestsettingspage.cpp catch/catchtestsettingspage.h catch/catchtestsettingspage.ui
     gtest/gtest_utils.cpp gtest/gtest_utils.h
     gtest/gtestconfiguration.cpp gtest/gtestconfiguration.h
     gtest/gtestconstants.h
@@ -40,7 +33,7 @@ add_qtc_plugin(AutoTest
     gtest/gtesttreeitem.cpp gtest/gtesttreeitem.h
     gtest/gtestvisitors.cpp gtest/gtestvisitors.h
     iframeworksettings.h
-    itestframework.cpp itestframework.h
+    itestframework.h
     itestparser.cpp itestparser.h
     projectsettingswidget.cpp projectsettingswidget.h
     qtest/qttest_utils.cpp qtest/qttest_utils.h
@@ -79,6 +72,7 @@ add_qtc_plugin(AutoTest
     testtreeitemdelegate.cpp testtreeitemdelegate.h
     testtreemodel.cpp testtreemodel.h
     testtreeview.cpp testtreeview.h
+  EXPLICIT_MOC boost/boosttestsettingspage.h
 )
 
 extend_qtc_plugin(AutoTest

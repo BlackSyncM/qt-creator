@@ -31,12 +31,12 @@
 namespace QtSupport {
 namespace Internal {
 
-class QtTestParser : public ProjectExplorer::OutputTaskParser
+class QtTestParser : public ProjectExplorer::IOutputParser
 {
     Q_OBJECT
 private:
-    Result handleLine(const QString &line, Utils::OutputFormat type) override;
-    void flush() override { emitCurrentTask(); }
+    void stdOutput(const QString &line) override;
+    void doFlush() override { emitCurrentTask(); }
 
     void emitCurrentTask();
 

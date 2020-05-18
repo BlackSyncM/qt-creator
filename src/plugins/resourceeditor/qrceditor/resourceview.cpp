@@ -175,7 +175,7 @@ void ResourceView::removeFiles(int prefixIndex, int firstFileIndex, int lastFile
 
 void ResourceView::keyPressEvent(QKeyEvent *e)
 {
-    if (e->key() == Qt::Key_Delete || e->key() == Qt::Key_Backspace)
+    if (e->key() == Qt::Key_Delete)
         emit removeItem();
     else
         Utils::TreeView::keyPressEvent(e);

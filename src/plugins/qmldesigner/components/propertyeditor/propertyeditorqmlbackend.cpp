@@ -179,10 +179,6 @@ QVariant properDefaultAuxiliaryProperties(const QmlObjectNode &qmlObjectNode,
         return 50;
     else if (propertyName == "bezier")
         return 50;
-    else if (propertyName == "labelPosition")
-        return 50.0;
-    else if (propertyName == "labelFlipSide")
-        return false;
     else if (propertyName == "customId")
         return QString();
     else if (propertyName == "joinConnection")
@@ -252,7 +248,7 @@ void PropertyEditorQmlBackend::setupAuxiliaryProperties(const QmlObjectNode &qml
     propertyNames.append("customId");
 
     if (itemNode.isFlowTransition()) {
-        propertyNames.append({"color", "width", "inOffset", "outOffset", "dash", "breakPoint", "type", "radius", "bezier", "labelPosition", "labelFlipSide"});
+        propertyNames.append({"color", "width", "inOffset", "outOffset", "dash", "breakPoint", "type", "radius", "bezier"});
     } else if (itemNode.isFlowItem()) {
         propertyNames.append({"color", "width", "inOffset", "outOffset", "joinConnection"});
     } else if (itemNode.isFlowActionArea()) {

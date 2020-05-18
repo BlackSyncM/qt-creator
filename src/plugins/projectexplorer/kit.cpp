@@ -559,12 +559,12 @@ void Kit::addToEnvironment(Environment &env) const
         aspect->addToEnvironment(this, env);
 }
 
-QList<OutputLineParser *> Kit::createOutputParsers() const
+IOutputParser *Kit::createOutputParser() const
 {
-    QList<OutputLineParser *> parsers{new OsParser};
+    auto first = new OsParser;
     for (KitAspect *aspect : KitManager::kitAspects())
-        parsers << aspect->createOutputParsers(this);
-    return parsers;
+        first->appendOutputParser(aspect->createOutputParser(this));
+    return first;
 }
 
 QString Kit::toHtml(const Tasks &additional, const QString &extraText) const

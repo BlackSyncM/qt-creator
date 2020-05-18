@@ -34,9 +34,6 @@ const char QdbLinuxOsType[] = "QdbLinuxOsType";
 
 const char QdbDeployConfigurationId[] = "Qt4ProjectManager.Qdb.QdbDeployConfiguration";
 
-const char QdbStopApplicationStepId[] = "Qdb.StopApplicationStep";
-const char QdbMakeDefaultAppStepId[] = "Qdb.MakeDefaultAppStep";
-
 const Core::Id QdbHardwareDevicePrefix = "QdbHardwareDevice";
 const char AppcontrollerFilepath[] = "/usr/bin/appcontroller";
 

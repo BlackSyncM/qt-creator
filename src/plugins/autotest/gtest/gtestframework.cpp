@@ -24,6 +24,8 @@
 ****************************************************************************/
 
 #include "gtestframework.h"
+#include "gtestsettings.h"
+#include "gtestsettingspage.h"
 #include "gtesttreeitem.h"
 #include "gtestparser.h"
 #include "../testframeworkmanager.h"
@@ -31,23 +33,14 @@
 namespace Autotest {
 namespace Internal {
 
-static GTestSettings *g_settings;
-
-GTestFramework::GTestFramework()
-    : ITestFramework(true)
+ITestParser *GTestFramework::createTestParser() const
 {
-    g_settings = &m_settings;
+    return new GTestParser;
 }
 
-ITestParser *GTestFramework::createTestParser()
-{
-    return new GTestParser(this);
-}
-
-TestTreeItem *GTestFramework::createRootNode()
+TestTreeItem *GTestFramework::createRootNode() const
 {
     return new GTestTreeItem(
-                this,
                 QCoreApplication::translate("GTestFramework",
                                             GTest::Constants::FRAMEWORK_SETTINGS_CATEGORY),
                 QString(), TestTreeItem::Root);
@@ -63,9 +56,29 @@ unsigned GTestFramework::priority() const
     return GTest::Constants::FRAMEWORK_PRIORITY;
 }
 
+IFrameworkSettings *GTestFramework::createFrameworkSettings() const
+{
+    return new GTestSettings;
+}
+
+Core::IOptionsPage *GTestFramework::createSettingsPage(QSharedPointer<IFrameworkSettings> settings) const
+{
+    return new GTestSettingsPage(settings, settingsId());
+}
+
+bool GTestFramework::hasFrameworkSettings() const
+{
+    return true;
+}
+
 QString GTestFramework::currentGTestFilter()
 {
-    return g_settings->gtestFilter;
+    static const Core::Id id
+            = Core::Id(Constants::FRAMEWORK_PREFIX).withSuffix(GTest::Constants::FRAMEWORK_NAME);
+    const auto manager = TestFrameworkManager::instance();
+
+    auto gSettings = qSharedPointerCast<GTestSettings>(manager->settingsForTestFramework(id));
+    return gSettings.isNull() ? QString(GTest::Constants::DEFAULT_FILTER) : gSettings->gtestFilter;
 }
 
 QString GTestFramework::groupingToolTip() const
@@ -77,7 +90,14 @@ QString GTestFramework::groupingToolTip() const
 
 GTest::Constants::GroupMode GTestFramework::groupMode()
 {
-    return g_settings->groupMode;
+    static const Core::Id id
+            = Core::Id(Constants::FRAMEWORK_PREFIX).withSuffix(GTest::Constants::FRAMEWORK_NAME);
+    const auto manager = TestFrameworkManager::instance();
+    if (!manager->groupingEnabled(id))
+        return GTest::Constants::None;
+
+    auto gSettings = qSharedPointerCast<GTestSettings>(manager->settingsForTestFramework(id));
+    return gSettings.isNull() ? GTest::Constants::Directory : gSettings->groupMode;
 }
 
 } // namespace Internal

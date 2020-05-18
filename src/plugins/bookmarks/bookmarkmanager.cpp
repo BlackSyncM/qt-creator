@@ -274,7 +274,7 @@ void BookmarkView::removeBookmark(const QModelIndex& index)
 
 void BookmarkView::keyPressEvent(QKeyEvent *event)
 {
-    if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
+    if (event->key() == Qt::Key_Delete) {
         removeBookmark(currentIndex());
         event->accept();
         return;

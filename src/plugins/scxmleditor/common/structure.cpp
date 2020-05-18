@@ -42,7 +42,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QRegExp>
-#include <QRegularExpressionValidator>
+#include <QRegExpValidator>
 #include <QToolBar>
 #include <QToolButton>
 #include <QUndoStack>
@@ -63,9 +63,9 @@ QWidget *TreeItemDelegate::createEditor(QWidget *parent, const QStyleOptionViewI
     if (index.isValid()) {
         auto edit = new QLineEdit(parent);
         edit->setFocusPolicy(Qt::StrongFocus);
-        QRegularExpression rx("^(?!xml)[_a-z][a-z0-9-._]*$");
-        rx.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
-        edit->setValidator(new QRegularExpressionValidator(rx, parent));
+        QRegExp rx("^(?!xml)[_a-z][a-z0-9-._]*$");
+        rx.setCaseSensitivity(Qt::CaseInsensitive);
+        edit->setValidator(new QRegExpValidator(rx, parent));
         return edit;
     }
     return QStyledItemDelegate::createEditor(parent, option, index);
@@ -239,7 +239,7 @@ void Structure::childAdded(const QModelIndex &childIndex)
 
 void Structure::keyPressEvent(QKeyEvent *e)
 {
-    if (e->key() == Qt::Key_Delete || e->key() == Qt::Key_Backspace) {
+    if (e->key() == Qt::Key_Delete) {
         QModelIndex ind = m_proxyModel->mapToSource(m_structureView->currentIndex());
         auto tag = static_cast<ScxmlTag*>(ind.internalPointer());
         if (tag && m_currentDocument) {

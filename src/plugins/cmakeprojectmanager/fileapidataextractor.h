@@ -25,23 +25,18 @@
 
 #pragma once
 
+#include "fileapiparser.h"
+
 #include "cmakebuildtarget.h"
+#include "cmakeprocess.h"
 #include "cmakeprojectnodes.h"
 
 #include <projectexplorer/rawprojectpart.h>
-
-#include <utils/fileutils.h>
-
-#include <QList>
-#include <QSet>
-#include <QString>
 
 #include <memory>
 
 namespace CMakeProjectManager {
 namespace Internal {
-
-class FileApiData;
 
 class FileApiQtcData
 {

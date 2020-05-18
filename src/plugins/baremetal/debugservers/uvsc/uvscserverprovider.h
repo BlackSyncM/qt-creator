@@ -78,9 +78,6 @@ public:
     bool isValid() const override;
     QString channelString() const final;
 
-    static QString buildDllRegistryKey(const Uv::DriverSelection &driver);
-    static QString adjustFlashAlgorithmProperty(const QString &property);
-
 protected:
     explicit UvscServerProvider(const QString &id);
     explicit UvscServerProvider(const UvscServerProvider &other);

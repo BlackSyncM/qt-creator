@@ -69,7 +69,7 @@ private:
     void recalculateCompletion();
     void recalculateDetails();
     void changeTextChanged(const QString &text);
-    void acceptCommand(ChangeCommand command);
+    void accept(ChangeCommand command);
 
     void enableButtons(bool b);
     void terminateProcess();

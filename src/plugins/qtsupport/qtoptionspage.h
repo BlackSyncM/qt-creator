@@ -35,8 +35,6 @@ class QtOptionsPage final : public Core::IOptionsPage
 public:
     QtOptionsPage();
 
-    static bool canLinkWithQt();
-    static bool isLinkedWithQt();
     static void linkWithQt();
 };
 

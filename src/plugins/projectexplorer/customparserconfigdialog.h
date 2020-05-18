@@ -43,7 +43,7 @@ class CustomParserConfigDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit CustomParserConfigDialog(QWidget *parent = nullptr);
+    explicit CustomParserConfigDialog(QDialog *parent = nullptr);
     ~CustomParserConfigDialog() override;
 
     void setExampleSettings();

@@ -25,7 +25,7 @@
 
 #include "linuxdevicetester.h"
 
-#include "remotelinux_constants.h"
+#include "linuxdevice.h"
 #include "rsyncdeploystep.h"
 
 #include <projectexplorer/devicesupport/deviceusedportsgatherer.h>
@@ -261,7 +261,7 @@ void GenericLinuxDeviceTester::handleRsyncFinished()
         emit progressMessage(tr("rsync is functional.\n"));
     }
 
-    d->deviceConfiguration->setExtraData(Constants::SupportsRSync, error.isEmpty());
+    d->deviceConfiguration.staticCast<LinuxDevice>()->setSupportsRsync(error.isEmpty());
     setFinished(result);
 }
 

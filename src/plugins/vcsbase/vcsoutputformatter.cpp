@@ -34,7 +34,7 @@
 
 namespace VcsBase {
 
-VcsOutputLineParser::VcsOutputLineParser() :
+VcsOutputFormatter::VcsOutputFormatter() :
     m_regexp(
         "(https?://\\S*)"                             // https://codereview.org/c/1234
         "|(v[0-9]+\\.[0-9]+\\.[0-9]+[\\-A-Za-z0-9]*)" // v0.1.2-beta3
@@ -43,35 +43,37 @@ VcsOutputLineParser::VcsOutputLineParser() :
 {
 }
 
-Utils::OutputLineParser::Result VcsOutputLineParser::handleLine(const QString &text,
-                                                                Utils::OutputFormat format)
+void VcsOutputFormatter::appendMessage(const QString &text, Utils::OutputFormat format)
 {
-    Q_UNUSED(format);
     QRegularExpressionMatchIterator it = m_regexp.globalMatch(text);
-    if (!it.hasNext())
-        return Status::NotHandled;
-    LinkSpecs linkSpecs;
+    int begin = 0;
     while (it.hasNext()) {
         const QRegularExpressionMatch match = it.next();
-        const int startPos = match.capturedStart();
+        const QTextCharFormat normalFormat = charFormat(format);
+        OutputFormatter::appendMessage(text.mid(begin, match.capturedStart() - begin), format);
+        QTextCursor tc = plainTextEdit()->textCursor();
         QStringView url = match.capturedView();
-        while (url.rbegin()->isPunct())
+        begin = match.capturedEnd();
+        while (url.rbegin()->isPunct()) {
             url.chop(1);
-        linkSpecs << LinkSpec(startPos, url.length(), url.toString());
+            --begin;
+        }
+        tc.movePosition(QTextCursor::End);
+        tc.insertText(url.toString(), linkFormat(normalFormat, url.toString()));
+        tc.movePosition(QTextCursor::End);
     }
-    return {Status::Done, linkSpecs};
+    OutputFormatter::appendMessage(text.mid(begin), format);
 }
 
-bool VcsOutputLineParser::handleLink(const QString &href)
+void VcsOutputFormatter::handleLink(const QString &href)
 {
     if (href.startsWith("http://") || href.startsWith("https://"))
         QDesktopServices::openUrl(QUrl(href));
     else if (!href.isEmpty())
         emit referenceClicked(href);
-    return true;
 }
 
-void VcsOutputLineParser::fillLinkContextMenu(
+void VcsOutputFormatter::fillLinkContextMenu(
         QMenu *menu, const QString &workingDirectory, const QString &href)
 {
     if (href.isEmpty() || href.startsWith("http://") || href.startsWith("https://")) {

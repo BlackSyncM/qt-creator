@@ -36,12 +36,15 @@ using namespace Help::Internal;
 
 bool SearchTaskHandler::canHandle(const ProjectExplorer::Task &task) const
 {
-    return !task.summary.isEmpty();
+    return !task.description.isEmpty()
+            && !task.description.startsWith(QLatin1Char('\n'));
 }
 
 void SearchTaskHandler::handle(const ProjectExplorer::Task &task)
 {
-    emit search(QUrl("https://www.google.com/search?q=" + task.summary));
+    const int eol = task.description.indexOf(QLatin1Char('\n'));
+    const QUrl url(QLatin1String("https://www.google.com/search?q=") + task.description.left(eol));
+    emit search(url);
 }
 
 QAction *SearchTaskHandler::createAction(QObject *parent) const

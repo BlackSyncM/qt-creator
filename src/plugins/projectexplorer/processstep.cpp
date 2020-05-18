@@ -24,43 +24,27 @@
 ****************************************************************************/
 
 #include "processstep.h"
-
-#include "abstractprocessstep.h"
 #include "buildconfiguration.h"
+#include "buildstep.h"
 #include "kit.h"
 #include "processparameters.h"
-#include "projectconfigurationaspects.h"
 #include "projectexplorerconstants.h"
-#include "projectexplorer_export.h"
 #include "target.h"
 
+#include <coreplugin/variablechooser.h>
+
 #include <utils/fileutils.h>
-#include <utils/outputformatter.h>
+#include <utils/macroexpander.h>
+
+#include <QFormLayout>
 
 using namespace Utils;
 
 namespace ProjectExplorer {
-namespace Internal {
 
 const char PROCESS_COMMAND_KEY[] = "ProjectExplorer.ProcessStep.Command";
 const char PROCESS_WORKINGDIRECTORY_KEY[] = "ProjectExplorer.ProcessStep.WorkingDirectory";
 const char PROCESS_ARGUMENTS_KEY[] = "ProjectExplorer.ProcessStep.Arguments";
-
-class ProcessStep final : public AbstractProcessStep
-{
-    Q_DECLARE_TR_FUNCTIONS(ProjectExplorer::ProcessStep)
-
-public:
-    ProcessStep(BuildStepList *bsl, Core::Id id);
-
-    bool init() final;
-    void setupOutputFormatter(Utils::OutputFormatter *formatter);
-    void setupProcessParameters(ProcessParameters *pp);
-
-    BaseStringAspect *m_command;
-    BaseStringAspect *m_arguments;
-    BaseStringAspect *m_workingDirectory;
-};
 
 ProcessStep::ProcessStep(BuildStepList *bsl, Core::Id id)
     : AbstractProcessStep(bsl, id)
@@ -102,29 +86,32 @@ ProcessStep::ProcessStep(BuildStepList *bsl, Core::Id id)
 bool ProcessStep::init()
 {
     setupProcessParameters(processParameters());
+    setOutputParser(target()->kit()->createOutputParser());
     return AbstractProcessStep::init();
-}
-
-void ProcessStep::setupOutputFormatter(OutputFormatter *formatter)
-{
-    formatter->addLineParsers(target()->kit()->createOutputParsers());
-    AbstractProcessStep::setupOutputFormatter(formatter);
 }
 
 void ProcessStep::setupProcessParameters(ProcessParameters *pp)
 {
-    QString workingDirectory = m_workingDirectory->value();
-    if (workingDirectory.isEmpty())
-        workingDirectory = fallbackWorkingDirectory();
+    BuildConfiguration *bc = buildConfiguration();
 
-    pp->setMacroExpander(macroExpander());
-    pp->setEnvironment(buildEnvironment());
-    pp->setWorkingDirectory(FilePath::fromString(workingDirectory));
+    QString workingDirectory = m_workingDirectory->value();
+    if (workingDirectory.isEmpty()) {
+        if (bc)
+            workingDirectory = Constants::DEFAULT_WORKING_DIR;
+        else
+            workingDirectory = Constants::DEFAULT_WORKING_DIR_ALTERNATE;
+    }
+
+    pp->setMacroExpander(bc ? bc->macroExpander() : Utils::globalMacroExpander());
+    pp->setEnvironment(bc ? bc->environment() : Utils::Environment::systemEnvironment());
+    pp->setWorkingDirectory(Utils::FilePath::fromString(workingDirectory));
     pp->setCommandLine({m_command->filePath(), m_arguments->value(), CommandLine::Raw});
     pp->resolveAll();
 }
 
+//*******
 // ProcessStepFactory
+//*******
 
 ProcessStepFactory::ProcessStepFactory()
 {
@@ -132,5 +119,4 @@ ProcessStepFactory::ProcessStepFactory()
     setDisplayName(ProcessStep::tr("Custom Process Step", "item in combobox"));
 }
 
-} // Internal
 } // ProjectExplorer

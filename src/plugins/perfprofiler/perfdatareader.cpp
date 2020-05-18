@@ -54,8 +54,6 @@
 #include <QTextStream>
 #include <QtEndian>
 
-using namespace ProjectExplorer;
-
 namespace PerfProfiler {
 namespace Internal {
 
@@ -291,14 +289,15 @@ bool PerfDataReader::acceptsSamples() const
     return m_recording;
 }
 
-QStringList PerfDataReader::collectArguments(const QString &executableDirPath, const Kit *kit) const
+QStringList PerfDataReader::collectArguments(const QString &executableDirPath,
+                                             const ProjectExplorer::Kit *kit) const
 {
     QStringList arguments;
     if (!executableDirPath.isEmpty())
-        arguments << "--app" << executableDirPath;
+        arguments << QLatin1String("--app") << executableDirPath;
 
     if (QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(kit)) {
-        arguments << "--extra" << QString("%1%5%2%5%3%5%4")
+        arguments << QLatin1String("--extra") << QString::fromLatin1("%1%5%2%5%3%5%4")
                      .arg(QDir::toNativeSeparators(qt->libraryPath().toString()))
                      .arg(QDir::toNativeSeparators(qt->pluginPath().toString()))
                      .arg(QDir::toNativeSeparators(qt->hostBinPath().toString()))
@@ -306,18 +305,20 @@ QStringList PerfDataReader::collectArguments(const QString &executableDirPath, c
                      .arg(QDir::listSeparator());
     }
 
-    if (auto toolChain = ToolChainKitAspect::cxxToolChain(kit)) {
-        Abi::Architecture architecture = toolChain->targetAbi().architecture();
-        if (architecture == Abi::ArmArchitecture && toolChain->targetAbi().wordWidth() == 64) {
-            arguments << "--arch" << "aarch64";
-        } else if (architecture != Abi::UnknownArchitecture) {
-            arguments << "--arch" << Abi::toString(architecture);
+    if (auto toolChain = ProjectExplorer::ToolChainKitAspect::toolChain(
+                kit, ProjectExplorer::Constants::CXX_LANGUAGE_ID)) {
+        ProjectExplorer::Abi::Architecture architecture = toolChain->targetAbi().architecture();
+        if (architecture == ProjectExplorer::Abi::ArmArchitecture &&
+                toolChain->targetAbi().wordWidth() == 64) {
+            arguments << QLatin1String("--arch") << QLatin1String("aarch64");
+        } else if (architecture != ProjectExplorer::Abi::UnknownArchitecture) {
+            arguments << QLatin1String("--arch") << ProjectExplorer::Abi::toString(architecture);
         }
     }
 
-    QString sysroot = SysRootKitAspect::sysRoot(kit).toString();
+    QString sysroot = ProjectExplorer::SysRootKitAspect::sysRoot(kit).toString();
     if (!sysroot.isEmpty())
-        arguments << "--sysroot" << sysroot;
+        arguments << QLatin1String("--sysroot") << sysroot;
 
     return arguments;
 }

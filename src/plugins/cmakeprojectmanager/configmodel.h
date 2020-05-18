@@ -27,9 +27,8 @@
 
 #include "cmakeconfigitem.h"
 
+#include <QAbstractTableModel>
 #include <utils/treemodel.h>
-
-#include <QString>
 
 namespace CMakeProjectManager {
 

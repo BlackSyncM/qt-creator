@@ -59,8 +59,6 @@ class FileNode;
 
 namespace Internal {
 class AppOutputSettings;
-class CustomParserSettings;
-class MiniProjectTargetSelector;
 class ProjectExplorerSettings;
 }
 
@@ -142,9 +140,6 @@ public:
     static const BuildPropertiesSettings &buildPropertiesSettings();
     static void showQtSettings();
 
-    static void setCustomParsers(const QList<Internal::CustomParserSettings> &settings);
-    static const QList<Internal::CustomParserSettings> customParsers();
-
     static void startRunControl(RunControl *runControl);
     static void showOutputPaneForRunControl(RunControl *runControl);
 
@@ -166,10 +161,11 @@ public:
 
     static void initiateInlineRenaming();
 
+    static QString displayNameForStepId(Core::Id stepId);
+
     static QStringList projectFileGlobs();
 
     static QThreadPool *sharedThreadPool();
-    static Internal::MiniProjectTargetSelector *targetSelector();
 
     static void showSessionManager();
     static void openNewProjectDialog();
@@ -196,7 +192,6 @@ signals:
     void recentProjectsChanged();
 
     void settingsChanged();
-    void customParsersChanged();
 
     void runActionsUpdated();
 
@@ -232,6 +227,7 @@ private slots:
 
     void testGnuMakeParserParsing_data();
     void testGnuMakeParserParsing();
+    void testGnuMakeParserTaskMangling_data();
     void testGnuMakeParserTaskMangling();
 
     void testXcodebuildParserParsing_data();

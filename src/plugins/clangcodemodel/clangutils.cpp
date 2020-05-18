@@ -60,7 +60,6 @@ using namespace ClangCodeModel;
 using namespace ClangCodeModel::Internal;
 using namespace Core;
 using namespace CppTools;
-using namespace ProjectExplorer;
 
 namespace ClangCodeModel {
 namespace Utils {
@@ -304,11 +303,12 @@ QString diagnosticCategoryPrefixRemoved(const QString &text)
 
 static ::Utils::FilePath compilerPath(const CppTools::ProjectPart &projectPart)
 {
-    Target *target = projectPart.project->activeTarget();
+    ProjectExplorer::Target *target = projectPart.project->activeTarget();
     if (!target)
         return ::Utils::FilePath();
 
-    ToolChain *toolchain = ToolChainKitAspect::cxxToolChain(target->kit());
+    ProjectExplorer::ToolChain *toolchain = ProjectExplorer::ToolChainKitAspect::toolChain(
+        target->kit(), ProjectExplorer::Constants::CXX_LANGUAGE_ID);
 
     return toolchain->compilerCommand();
 }

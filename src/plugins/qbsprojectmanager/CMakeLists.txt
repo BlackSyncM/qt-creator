@@ -15,6 +15,7 @@ add_qtc_plugin(QbsProjectManager
     qbskitinformation.cpp qbskitinformation.h
     qbsnodes.cpp qbsnodes.h
     qbsnodetreebuilder.cpp qbsnodetreebuilder.h
+    qbsparser.cpp qbsparser.h
     qbspmlogging.cpp qbspmlogging.h
     qbsprofilemanager.cpp qbsprofilemanager.h
     qbsprofilessettingspage.cpp qbsprofilessettingspage.h

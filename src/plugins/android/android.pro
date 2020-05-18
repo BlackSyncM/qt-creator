@@ -9,8 +9,6 @@ HEADERS += \
     androidconstants.h \
     androidconfigurations.h \
     androidmanager.h \
-    androidmanifesteditoriconcontainerwidget.h \
-    androidmanifesteditoriconwidget.h \
     androidrunconfiguration.h \
     androidruncontrol.h \
     androidsettingswidget.h \
@@ -56,8 +54,6 @@ HEADERS += \
 SOURCES += \
     androidconfigurations.cpp \
     androidmanager.cpp \
-    androidmanifesteditoriconcontainerwidget.cpp \
-    androidmanifesteditoriconwidget.cpp \
     androidrunconfiguration.cpp \
     androidruncontrol.cpp \
     androidsettingswidget.cpp \
